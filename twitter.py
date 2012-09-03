@@ -6,6 +6,7 @@
 
 # Modules
 import cherrypy
+import json
 from mako.lookup import TemplateLookup
 import xapian
 
