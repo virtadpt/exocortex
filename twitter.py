@@ -10,7 +10,8 @@ import json
 from mako.lookup import TemplateLookup
 import xapian
 
-# Constants
+# Global variables.
+database_directory = ''
 
 # Classes
 
@@ -21,6 +22,8 @@ import xapian
 
 # See if a database for the Twitter feed exists.  If not, create it with the
 # proper schema.
+# For every directory in database_directory...
+# xapian create-or-open directory
 
 # Schema:
 # - @username (relevant for retweets)
@@ -37,13 +40,17 @@ import xapian
 # User interface allows the user to search based upon any or all of the fields
 # in the schema.  Not sure how to do this year - drop-downs?  Multiple
 # fields, each of which allows Boolean operations?
-# Execute a search on the Xapian database.
+# Xapian has the ability to search multiple databases simultaneously, so for
+# every database found on startup, open a connection.
+# Execute a search on the Xapian database inside a try..except block to catch
+# NOTFOUND cases.
 # Count the number of results.
 # Sort the results in descending order based upon timestamps.
 # Generate a page of X results (with Y not shown yet) and display them on the
 # result page.
 # If the first result shown != 0, add a <- Previous link to earlier results.
 # If there are more results in the list, add a Next-> link.
+# Close the search connections to the databases.
 
 # Attempt to connect to Twitter's API server.  If we can't, stop trying but
 # make it possible for the user to search already indexed content.
@@ -53,6 +60,7 @@ import xapian
 
 # Go into a loop in which we wait for X minutes or Y seconds and download
 # tweets posted since the last time the database was updated.
+# For every Twitter feed configured for this instance,
 # Get the datestamp of the last tweet added to the database.
 # Pull all of the tweets posted since the latest one in the database was
 # added.
