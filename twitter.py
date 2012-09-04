@@ -1,14 +1,16 @@
 #!/usr/bin/env python2
 
+# This is the module that pulls and indexes Twitter feeds.
+# By: The Doctor <drwho at virtadpt dot net>
+
+# License: GPLv3
+
 # TODO:
 # - Make it possible to add, index, and follow arbitrary numbers of Twitter
 # feeds.  One database per feed?  How far can Xapian scale?
 
 # Modules
-import cherrypy
 import json
-from mako.lookup import TemplateLookup
-import xapian
 
 # Global variables.
 database_directory = ''
@@ -18,42 +20,13 @@ database_directory = ''
 # Helper methods
 
 # Core code
-# Read configuration file.
-
-# See if a database for the Twitter feed exists.  If not, create it with the
-# proper schema.
-# For every directory in database_directory...
-# xapian create-or-open directory
-
-# Schema:
-# - @username (relevant for retweets)
-# - datestamp
-# - permalink
-# - body
-# - list of hashtags
-# - URLs found in body
-#   - Need to figure out how to determine whether or not to run them through
-#     a URL expander (goo.gl, t.co, ow.ly, et cetera).
-
-# Start up the user interface because it runs in the background in a separate
-# thread.
-# User interface allows the user to search based upon any or all of the fields
-# in the schema.  Not sure how to do this year - drop-downs?  Multiple
-# fields, each of which allows Boolean operations?
-# Xapian has the ability to search multiple databases simultaneously, so for
-# every database found on startup, open a connection.
-# Execute a search on the Xapian database inside a try..except block to catch
-# NOTFOUND cases.
-# Count the number of results.
-# Sort the results in descending order based upon timestamps.
-# Generate a page of X results (with Y not shown yet) and display them on the
-# result page.
-# If the first result shown != 0, add a <- Previous link to earlier results.
-# If there are more results in the list, add a Next-> link.
-# Close the search connections to the databases.
 
 # Attempt to connect to Twitter's API server.  If we can't, stop trying but
 # make it possible for the user to search already indexed content.
+
+# For every database in database_directory, instantiate a copy of Compactor()
+# and compact the database to free up disk space and make searches more
+# efficient.
 
 # If we had to create the database then we have to load content into it by
 # downloading the whole timeline in chunks and process the information.
@@ -74,3 +47,4 @@ database_directory = ''
 # Delete tempfiles.
 
 # Fin.
+
