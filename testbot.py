@@ -64,15 +64,17 @@ class ExocortexBot(ClientXMPP):
     It's a proof of concept right now which I plan on turning into a class
     that can be instantiated and turned into any kind of bot the user wants. """
 
+    # Class attributes go up here so they're easy to find.
     botname = ""
     room = ""
 
-    def __init__(self, botname, uid, password, room):
+    """ Initialize the bot when it's instantiated. """
+    def __init__(self, botname, jid, password, room):
         self.botname = botname.capitalize()
         self.room = room
 
         # Log into the server.
-        ClientXMPP.__init__(self, uid, password)
+        ClientXMPP.__init__(self, jid, password)
 
         # Set appropriate event handlers for this session.  Please note that a
         # single event many be processed by multiple matching event handlers.
@@ -144,11 +146,11 @@ if __name__ == '__main__':
         reload(sys)
         sys.setdefaultencoding('utf-8')
 
-    # Read the global configuration file.
-
     # Determine the name of this bot from its filename (without the file
     # extension, if there is one).
     botname = os.path.basename(__file__).split('.')[0]
+
+    # Read the global configuration file.
 
     # Read its unique configuration file.  Do this by taking the name of the
     # bot and appending '.conf' to it.  Then load it into a config file parser
@@ -158,8 +160,10 @@ if __name__ == '__main__':
 
     username = config.get(botname, 'username')
     password = config.get(botname, 'password')
-    loglevel = 'logging.' + config.get(botname, 'loglevel').upper()
     muc = config.get(botname, 'muc')
+
+    # Figure out how to configure the logger.
+    loglevel = config.get(botname, 'loglevel')
 
     # Log into database servers.
     # If database does not exist, create it.
