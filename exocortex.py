@@ -77,6 +77,8 @@
 
 # Print its ready message to the war room.
 
+# Set its account status using the appropriate PEPs.
+
 # Go into bot event loop.
 
 # Clean up after ourselves.
