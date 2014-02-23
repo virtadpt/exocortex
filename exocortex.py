@@ -59,7 +59,9 @@
 
 # Read its unique configuration file.
 
-# Log into the XMPP server.
+# Log into the XMPP server.  If it can't log in, try to register an account
+# with the server.  If it's a private server this shouldn't be a problem, else
+# print an error to stderr and ABEND.
 
 # Connect to the MUC.
 
