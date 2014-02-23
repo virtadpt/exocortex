@@ -105,7 +105,11 @@ class ExocortexBot(ClientXMPP):
         self.get_roster()
 
         # Log into the bot's home room.
-        self.plugin['xep_0045'].joinMUC(self.room, self.botname, wait=True)
+        joined = self.plugin['xep_0045'].joinMUC(self.room, self.botname, wait=True)
+        if joined:
+            print self.botname + " has successfully joined MUC " + self.room
+        else:
+            print "There was a problem with " + self.botname + " joining " + self.room
 
     """ Event handler that fires whenever a message is sent to this JID. The
     argument 'msg' represents a message stanza. """
@@ -114,6 +118,10 @@ class ExocortexBot(ClientXMPP):
         if msg['type'] in ('chat', 'normal'):
             self.send_message(mto=msg['from'],
                 mbody="The message you sent me was:\n%s" % msg['body'])
+            if "send me this" in msg['body']:
+                self.send_message(mto=msg['from'], mbody="You told me to send you this.  I'm sending you that instead.")
+            if "what is your name" in msg['body']:
+                self.send_message(mto=msg['from'], mbody="My name is %s." % self.botname)
 
     """ Event handler that fields messages addressed to the bot when they come
     from a chatroom.  The argument 'msg' represents a message stanza. """
