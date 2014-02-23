@@ -1,4 +1,6 @@
 #!/usr/bin/env python2
+# -*- coding: utf-8 -*-
+# vim: set expandtab tabstop=4 shiftwidth=4 :
 
 # This is the base class for an exocortex bot that:
 # - Reads a configuration file for all bots of its type.
@@ -50,11 +52,17 @@
 # Global variables.
 
 # Classes.
+class ExocortexBot:
+    """This is the base class of the generic Exocortex bot.  It instantiates
+    the underlying XMPP bot, sets it up with a default set of actions, and can
+    be extended into whatever else the user wants to build."""
+
+    # Initialize the bot.
+    def __init__(self):
 
 # Helper methods.
 
 # Core code...
-
 # Read the global configuration file.
 
 # Read its unique configuration file.
