@@ -59,20 +59,28 @@ from sleekxmpp.exceptions import IqError, IqTimeout
 
 # Classes.
 class ExocortexBot(ClientXMPP):
-    botname = ""
-    muc = ""
+    """ This is a simple XMPP bot written using the SleekXMPP library which,
+    at the moment, logs into an XMPP server listening on the loopback host.
+    It's a proof of concept right now which I plan on turning into a class
+    that can be instantiated and turned into any kind of bot the user wants. """
 
-    def __init__(self, botname, uid, password, muc):
+    botname = ""
+    room = ""
+
+    def __init__(self, botname, uid, password, room):
         self.botname = botname.capitalize()
-        self.muc = muc
+        self.room = room
 
         # Log into the server.
         ClientXMPP.__init__(self, uid, password)
 
-        # Set the appropriate event handlers for this session.
+        # Set appropriate event handlers for this session.  Please note that a
+        # single event many be processed by multiple matching event handlers.
         self.add_event_handler("session_start", self.start)
         self.add_event_handler("message", self.message)
         self.add_event_handler("groupchat_message", self.groupchat)
+        self.add_event_handler("muc::%s::got_online" % self.room,
+            self.muc_online)
 
         # Register plugins to support XEPs.
         self.register_plugin('xep_0030') # Service discovery
@@ -85,33 +93,46 @@ class ExocortexBot(ClientXMPP):
         # If the version of the tables is older then the current one, run the
         #    SQL script to update it.
 
-    """ This event handler fires whenever an XMPP session starts (i.e., it
+    """ Event handler the fires whenever an XMPP session starts (i.e., it
     logs into the server on this JID.  You can put just about any session
-    initialization code here that you want."""
+    initialization code here that you want.  The argument 'event' is an empty
+    dict. """
     def start(self, event):
         # Tell the server the bot has initiated a session.
         self.send_presence()
         self.get_roster()
 
         # Log into the bot's home room.
-        self.plugin['xep_0045'].joinMUC(self.muc, self.botname, wait=True)
+        self.plugin['xep_0045'].joinMUC(self.room, self.botname, wait=True)
 
-    """ This event handler fires whenever a message is sent to this JID. """
+    """ Event handler that fires whenever a message is sent to this JID. The
+    argument 'msg' represents a message stanza. """
     def message(self, msg):
         # Potential message types: normal, chat, error, headline, groupchat
-        if msg['type'] in ('chat', 'groupchat', 'normal'):
+        if msg['type'] in ('chat', 'normal'):
             self.send_message(mto=msg['from'],
                 mbody="The message you sent me was:\n%s" % msg['body'])
 
-    """ This event handler fields messages addressed to the bot when they
-    come from a chatroom. """
+    """ Event handler that fields messages addressed to the bot when they come
+    from a chatroom.  The argument 'msg' represents a message stanza. """
     def groupchat(self, msg):
         # If an incoming message came from the bot, ignore it to prevent an
         # infinite loop.
-        if msg['mucnick'] != self.botname and self.botname in msg['body']:
-            self.send_message(mto=msg['from'].bare,
-                mbody="I heard that. %s said to me:\n%s" % (msg['mucnick'],
-                msg['body']), mtype='groupchat')
+        if msg['type'] in ('groupchat'):
+            if msg['mucnick'] != self.botname and self.botname in msg['body']:
+                self.send_message(mto=msg['from'].bare,
+                    mbody="I heard that. %s said to me:\n%s" % (msg['mucnick'],
+                    msg['body']), mtype='groupchat')
+
+    """ Event handler that reacts to presence stanzas in chatrooms issued
+    when a user joins the chat.  The argument 'presence' is a presence
+    message. """
+    def muc_online(self, presence):
+        if presence['muc']['nick'] != self.botname:
+            self.send_message(mto=presence['from'].bare,
+                mbody="Greetings, %s %s." % (presence['muc']['role'],
+                                             presence['muc']['nick']),
+                mtype='groupchat')
 
 # Helper methods.
 
@@ -167,4 +188,4 @@ if __name__ == '__main__':
 # Clean up after ourselves.
 
 # Fin.
-
+sys.exit(0)
