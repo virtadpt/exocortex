@@ -50,10 +50,12 @@
 # Load modules.
 import ConfigParser
 import os
+import resource
 import sys
 import logging
 from sleekxmpp import ClientXMPP
 from sleekxmpp.exceptions import IqError, IqTimeout
+import time
 
 # Global variables.
 
@@ -118,14 +120,47 @@ class ExocortexBot(ClientXMPP):
     def message(self, msg):
         # Potential message types: normal, chat, error, headline, groupchat
         if msg['type'] in ('chat', 'normal'):
-            self.send_message(mto=msg['from'],
-                mbody="The message you sent me was:\n%s" % msg['body'])
-            if "send me this" in msg['body']:
-                self.send_message(mto=msg['from'], mbody="You told me to send you this.  I'm sending you that instead.")
             if "what is your name" in msg['body']:
                 self.send_message(mto=msg['from'], mbody="My name is %s." % self.botname)
             if "robots" in msg['body'] and "report" in msg['body']:
                 self.send_message(mto=msg['from'], mbody=self.imalive)
+
+            if "status" in msg['body']:
+                self.send_message(mto=msg['from'],
+                    mbody="Agent %s is fully operational on %s." % (self.botname, time.ctime()))
+                self.send_message(mto=msg['from'],
+                    mbody="I am operating from directory %s." % os.getcwd())
+
+                # Get the bot's current PID.  We'll need this later.
+                current_pid = os.getpid()
+                self.send_message(mto=msg['from'],
+                    mbody="My current process ID is %d." % current_pid)
+
+                # Dig into the OS to get more status information by opening
+                # the status file in /proc/<pid> and reading from it..
+                procfile = "/proc/" + str(current_pid) + "/status"
+                procstat = ""
+                try:
+                    s = open(procfile)
+                    procstat = s.read()
+                    s.close()
+                except:
+                    self.send_message(mto=msg['from'],
+                        mbody="I was unable to read my process status info.")
+
+                # Figure out how much RAM this bot is using and tell the user.
+                memory_utilization = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+                self.send_message(mto=msg['from'],
+                    mbody="I am currently using %d KB of RAM." % memory_utilization)
+
+                # Get current system load averages.
+                self.send_message(mto=msg['from'],
+                    mbody="The current system load is %s." % str(os.getloadavg()))
+
+            # If the user tells the bot to terminate, do so.
+            if "shut down" in msg['body']:
+                self.send_message(mto=msg['from'], mbody="%s is shutting down..." % (self.botname))
+                sys.exit(0)
 
     """ Event handler that fields messages addressed to the bot when they come
     from a chatroom.  The argument 'msg' represents a message stanza. """
