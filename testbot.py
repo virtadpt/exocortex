@@ -67,11 +67,13 @@ class ExocortexBot(ClientXMPP):
     # Class attributes go up here so they're easy to find.
     botname = ""
     room = ""
+    imalive = ""
 
     """ Initialize the bot when it's instantiated. """
-    def __init__(self, botname, jid, password, room):
+    def __init__(self, botname, jid, password, room, imalive):
         self.botname = botname.capitalize()
         self.room = room
+        self.imalive = imalive
 
         # Log into the server.
         ClientXMPP.__init__(self, jid, password)
@@ -122,6 +124,8 @@ class ExocortexBot(ClientXMPP):
                 self.send_message(mto=msg['from'], mbody="You told me to send you this.  I'm sending you that instead.")
             if "what is your name" in msg['body']:
                 self.send_message(mto=msg['from'], mbody="My name is %s." % self.botname)
+            if "robots" in msg['body'] and "report" in msg['body']:
+                self.send_message(mto=msg['from'], mbody=self.imalive)
 
     """ Event handler that fields messages addressed to the bot when they come
     from a chatroom.  The argument 'msg' represents a message stanza. """
@@ -169,6 +173,7 @@ if __name__ == '__main__':
     username = config.get(botname, 'username')
     password = config.get(botname, 'password')
     muc = config.get(botname, 'muc')
+    imalive = config.get(botname, 'imalive')
 
     # Figure out how to configure the logger.
     loglevel = config.get(botname, 'loglevel')
@@ -188,7 +193,7 @@ if __name__ == '__main__':
     # else print an error to stderr and ABEND.
     logging.basicConfig(level=logging.DEBUG,
                         format='%(levelname)-8s %(message)s')
-    bot = ExocortexBot(botname, username, password, muc)
+    bot = ExocortexBot(botname, username, password, muc, imalive)
 
     # Connect to the XMPP server and start processing messages.
     if bot.connect():
