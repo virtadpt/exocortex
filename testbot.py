@@ -146,6 +146,7 @@ class ExocortexBot(ClientXMPP):
             if "shut down" in msg['body'] or "shutdown" in msg['body']:
                 self.send_message(mto=msg['from'],
                     mbody="%s is shutting down..." % (self.botname))
+                self.disconnect(wait=True)
                 sys.exit(0)
 
     """ Event handler that fields messages addressed to the bot when they come
