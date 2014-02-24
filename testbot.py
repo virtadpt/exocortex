@@ -72,9 +72,12 @@ class ExocortexBot(ClientXMPP):
     imalive = ""
 
     """ Initialize the bot when it's instantiated. """
-    def __init__(self, botname, jid, password, room, imalive):
+    def __init__(self, botname, jid, password, room, room_announcement,
+        imalive):
+
         self.botname = botname.capitalize()
         self.room = room
+        self.room_announcement = room_announcement
         self.imalive = imalive
 
         # Log into the server.
@@ -155,8 +158,7 @@ class ExocortexBot(ClientXMPP):
     def muc_online(self, presence):
         if presence['muc']['nick'] != self.botname:
             self.send_message(mto=presence['from'].bare,
-                mbody="Greetings, %s %s." % (presence['muc']['role'],
-                    presence['muc']['nick']), mtype='groupchat')
+                mbody=self.room_announcement, mtype='groupchat')
 
 # Helper methods.
 """ This method prints out some basic system status information for the user,
@@ -212,6 +214,7 @@ if __name__ == '__main__':
     username = config.get(botname, 'username')
     password = config.get(botname, 'password')
     muc = config.get(botname, 'muc')
+    muclogin = config.get(botname, 'muclogin')
     imalive = config.get(botname, 'imalive')
 
     # Figure out how to configure the logger.
@@ -232,7 +235,7 @@ if __name__ == '__main__':
     # else print an error to stderr and ABEND.
     logging.basicConfig(level=logging.DEBUG,
                         format='%(levelname)-8s %(message)s')
-    bot = ExocortexBot(botname, username, password, muc, imalive)
+    bot = ExocortexBot(botname, username, password, muc, muclogin, imalive)
 
     # Connect to the XMPP server and start processing messages.
     if bot.connect():
