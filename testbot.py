@@ -122,9 +122,12 @@ class ExocortexBot(ClientXMPP):
         if msg['type'] in ('chat', 'normal'):
             if "what is your name" in msg['body']:
                 self.send_message(mto=msg['from'], mbody="My name is %s." % self.botname)
+
+            # If the user asks if the bot is alive, respond.
             if "robots" in msg['body'] and "report" in msg['body']:
                 self.send_message(mto=msg['from'], mbody=self.imalive)
 
+            # Return a status report to the user.
             if "status" in msg['body']:
                 status = process_status(self.botname)
                 self.send_message(mto=msg['from'], mbody=status)
