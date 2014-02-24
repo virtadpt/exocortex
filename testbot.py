@@ -156,8 +156,7 @@ class ExocortexBot(ClientXMPP):
         if presence['muc']['nick'] != self.botname:
             self.send_message(mto=presence['from'].bare,
                 mbody="Greetings, %s %s." % (presence['muc']['role'],
-                                             presence['muc']['nick']),
-                mtype='groupchat')
+                    presence['muc']['nick']), mtype='groupchat')
 
 # Helper methods.
 """ This method prints out some basic system status information for the user,
