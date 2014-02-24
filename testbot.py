@@ -155,10 +155,20 @@ class ExocortexBot(ClientXMPP):
         # If an incoming message came from the bot, ignore it to prevent an
         # infinite loop.
         if msg['type'] in ('groupchat'):
+            # These responses only trigger if the bot's name is somewhere in
+            # the body of the message.
             if msg['mucnick'] != self.botname and self.botname in msg['body']:
                 self.send_message(mto=msg['from'].bare,
                     mbody="I heard that. %s said to me:\n%s" % (msg['mucnick'],
                     msg['body']), mtype='groupchat')
+
+            # These responses only trigger if a message did not originate with
+            # the bot in question.
+            if msg['mucnick'] != self.botname:
+                # "Robots, report."
+                if "robots, report" in msg['body']:
+                    self.send_message(mto=msg['from'].bare, mbody=self.imalive,
+                        mtype='groupchat')
 
     """ Event handler that reacts to presence stanzas in chatrooms issued
     when a user joins the chat.  The argument 'presence' is a presence
