@@ -67,14 +67,16 @@ class ExocortexBot(ClientXMPP):
     that can be instantiated and turned into any kind of bot the user wants. """
 
     # Class attributes go up here so they're easy to find.
+    owner = ""
     botname = ""
     room = ""
     imalive = ""
 
     """ Initialize the bot when it's instantiated. """
-    def __init__(self, botname, jid, password, room, room_announcement,
+    def __init__(self, owner, botname, jid, password, room, room_announcement,
         imalive):
 
+        self.owner = owner
         self.botname = botname.capitalize()
         self.room = room
         self.room_announcement = room_announcement
@@ -111,8 +113,13 @@ class ExocortexBot(ClientXMPP):
         self.send_presence()
         self.get_roster()
 
+        # Start a private chat with the bot's owner.
+        self.send_message(mto=self.owner, mbody="%s is now online." %
+            self.botname)
+
         # Log into the bot's home room.
-        joined = self.plugin['xep_0045'].joinMUC(self.room, self.botname, wait=True)
+        joined = self.plugin['xep_0045'].joinMUC(self.room, self.botname,
+            wait=True)
         if joined:
             print self.botname + " has successfully joined MUC " + self.room
         else:
@@ -211,6 +218,7 @@ if __name__ == '__main__':
     config = ConfigParser.ConfigParser()
     config .read(botname + '.conf')
 
+    owner = config.get(botname, 'owner')
     username = config.get(botname, 'username')
     password = config.get(botname, 'password')
     muc = config.get(botname, 'muc')
@@ -235,7 +243,8 @@ if __name__ == '__main__':
     # else print an error to stderr and ABEND.
     logging.basicConfig(level=logging.DEBUG,
                         format='%(levelname)-8s %(message)s')
-    bot = ExocortexBot(botname, username, password, muc, muclogin, imalive)
+    bot = ExocortexBot(owner, botname, username, password, muc, muclogin,
+        imalive)
 
     # Connect to the XMPP server and start processing messages.
     if bot.connect():
