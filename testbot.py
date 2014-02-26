@@ -160,22 +160,24 @@ class ExocortexBot(ClientXMPP):
             if "what is your name" in message:
                 self.send_message(mto=msg['from'],
                     mbody="My name is %s." % self.botname)
+                return
 
             # If the user asks if the bot is alive, respond.
             if "robots" in message and "report" in message:
                 self.send_message(mto=msg['from'], mbody=self.imalive)
+                return
 
             # Return a status report to the user.
             if "status" in message:
                 status = process_status(self.botname)
                 self.send_message(mto=msg['from'], mbody=status)
+                return
 
             # Add a response to the database.
             if "add response" in message:
-                # response[0]: Bot's name.
-                # response[1]: "add response"
-                # response[2]: (new) keyword
-                # response[3]: response
+                # response[0]: "add response"
+                # response[1]: (new) keyword
+                # response[2]: response
                 response = message.split(',')[1:]
                 new_keyword = response[0].strip()
                 new_response = response[1].strip()
@@ -189,7 +191,7 @@ class ExocortexBot(ClientXMPP):
                             new_keyword)
                     else:
                         self.send_message(mto=msg['from'],
-                            mbody="That response exists already")
+                            mbody="That response exists already.")
                 else:
                     # New keyword, new response.
                     self.responses[new_keyword] = []
@@ -199,6 +201,29 @@ class ExocortexBot(ClientXMPP):
                 return
 
             # Delete a response from the database.
+            if "delete response" in message:
+                # response[0]: "add response"
+                # response[1]: (new) keyword
+                # response[2]: response
+                response = message.split(',')[1:]
+                old_keyword = response[0].strip()
+                old_response = response[1].strip()
+
+                # Keyword exists, response does not exist.
+                if old_keyword in self.responses:
+                    if old_response not in self.responses[old_keyword]:
+                        self.send_message(mto=msg['from'],
+                            mbody="That response does not exist.")
+                    else:
+                        # Response exists.
+                        self.responses[old_keyword].remove(old_response)
+                        self.send_message(mto=msg['from'],
+                            mbody="Response deleted.")
+                else:
+                    # Keyword does not exist.
+                    self.send_message(mto=msg['from'],
+                        mbody="That keyword does not exist.")
+                return
 
             # Replace a response in the database.
 
@@ -206,6 +231,7 @@ class ExocortexBot(ClientXMPP):
             if "dump responses" in message:
                 self.send_message(mto=msg['from'],
                     mbody="Current responses:\n%s" % str(self.responses))
+                return
 
             # If the user tells the bot to terminate, do so.
             if "shut down" in message or "shutdown" in message:
@@ -227,6 +253,7 @@ class ExocortexBot(ClientXMPP):
                     length = len(self.responses[keyword])
                     self.send_message(mto=msg['from'],
                         mbody=self.responses[keyword][random.randrange(length)])
+                return
 
     """ Event handler that fields messages addressed to the bot when they come
     from a chatroom.  The argument 'msg' represents a message stanza. """
