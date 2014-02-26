@@ -170,6 +170,43 @@ class ExocortexBot(ClientXMPP):
                 status = process_status(self.botname)
                 self.send_message(mto=msg['from'], mbody=status)
 
+            # Add a response to the database.
+            if "add response" in message:
+                # response[0]: Bot's name.
+                # response[1]: "add response"
+                # response[2]: (new) keyword
+                # response[3]: response
+                response = message.split(',')[1:]
+                new_keyword = response[0].strip()
+                new_response = response[1].strip()
+
+                # Keyword exists, response does not exist.
+                if new_keyword in self.responses:
+                    if new_response not in self.responses[new_keyword]:
+                        self.responses[new_keyword].append(new_response)
+                        self.send_message(mto=msg['from'],
+                            mbody="New response for keyword %s saved." %
+                            new_keyword)
+                    else:
+                        self.send_message(mto=msg['from'],
+                            mbody="That response exists already")
+                else:
+                    # New keyword, new response.
+                    self.responses[new_keyword] = []
+                    self.responses[new_keyword].append(new_response)
+                    self.send_message(mto=msg['from'],
+                        mbody="New keyword and response saved.")
+                return
+
+            # Delete a response from the database.
+
+            # Replace a response in the database.
+
+            # Print all responses for debugging.
+            if "dump responses" in message:
+                self.send_message(mto=msg['from'],
+                    mbody="Current responses:\n%s" % str(self.responses))
+
             # If the user tells the bot to terminate, do so.
             if "shut down" in message or "shutdown" in message:
                 self.send_message(mto=msg['from'],
