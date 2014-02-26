@@ -1,0 +1,4 @@
+{
+  "response1": ["foo!", "bar!", "baz!"],
+  "response2": ["alpha", "bravo", "charlie"]
+}

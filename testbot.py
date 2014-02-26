@@ -46,10 +46,13 @@
 #     0x807B17C1 / 7960 1CDC 85C9 0B63 8D9F  DD89 3BD8 FF2B 807B 17C1
 
 # License: GPLv3
+# Pre-requisite modules have their own licenses.
 
 # Load modules.
 import ConfigParser
+import json
 import os
+import random
 import resource
 import sys
 import logging
@@ -72,15 +75,36 @@ class ExocortexBot(ClientXMPP):
     room = ""
     imalive = ""
 
+    # Any customized responses for the bot go in this dict.  The idea is that
+    # the user can define a case insensitive keyword (or phrase) to match
+    # incoming stanzas against, and a list of one or more possible responses
+    # that the bot will randomly choose between.  This schema is designed to
+    # be storable to disk in between restarts.
+    # Schema: {"keyword": ["response0", "response1", ...], ...}
+    responses = {}
+
     """ Initialize the bot when it's instantiated. """
     def __init__(self, owner, botname, jid, password, room, room_announcement,
-        imalive):
+        imalive, responsefile):
 
         self.owner = owner
         self.botname = botname.capitalize()
         self.room = room
         self.room_announcement = room_announcement
         self.imalive = imalive
+
+        # Load the bot's customized responses from disk.
+        loaded_responses = ""
+        try:
+            rfile = open(responsefile, 'r')
+            loaded_responses = rfile.read()
+            rfile.close()
+            self.responses = json.loads(loaded_responses)
+
+            # Blank the loaded_responses variable to free up some memory.
+            loaded_responses = ""
+        except IOError:
+            print "ERROR: I wasn't able to load " + responsefile + ".  Moving on..."
 
         # Log into the server.
         ClientXMPP.__init__(self, jid, password)
@@ -130,24 +154,42 @@ class ExocortexBot(ClientXMPP):
     def message(self, msg):
         # Potential message types: normal, chat, error, headline, groupchat
         if msg['type'] in ('chat', 'normal'):
-            if "what is your name" in msg['body']:
-                self.send_message(mto=msg['from'], mbody="My name is %s." % self.botname)
+            # To make parsing easier, lowercase the message body before
+            # matching against it.
+            message = msg['body'].lower()
+            if "what is your name" in message:
+                self.send_message(mto=msg['from'],
+                    mbody="My name is %s." % self.botname)
 
             # If the user asks if the bot is alive, respond.
-            if "robots" in msg['body'] and "report" in msg['body']:
+            if "robots" in message and "report" in message:
                 self.send_message(mto=msg['from'], mbody=self.imalive)
 
             # Return a status report to the user.
-            if "status" in msg['body']:
+            if "status" in message:
                 status = process_status(self.botname)
                 self.send_message(mto=msg['from'], mbody=status)
 
             # If the user tells the bot to terminate, do so.
-            if "shut down" in msg['body'] or "shutdown" in msg['body']:
+            if "shut down" in message or "shutdown" in message:
                 self.send_message(mto=msg['from'],
                     mbody="%s is shutting down..." % (self.botname))
                 self.disconnect(wait=True)
+
+                # Back up the response file.
+
+                # Dump self.responses as a JSON document.
+
                 sys.exit(0)
+
+            # If nothing else, match all of the keywords/phrases in the
+            # response file against the message body and pick one of the
+            # responses.
+            for keyword in self.responses:
+                if keyword in message:
+                    length = len(self.responses[keyword])
+                    self.send_message(mto=msg['from'],
+                        mbody=self.responses[keyword][random.randrange(length)])
 
     """ Event handler that fields messages addressed to the bot when they come
     from a chatroom.  The argument 'msg' represents a message stanza. """
@@ -242,15 +284,14 @@ if __name__ == '__main__':
     # Figure out how to configure the logger.
     loglevel = config.get(botname, 'loglevel')
 
+    # Get the filename of the response file from the config file.
+    responsefile = config.get(botname, 'responsefile')
+
     # Log into database servers.
     # If database does not exist, create it.
     # If database does exist, check the version of the database schema.
     # If the version of the tables is older then the current one, run the SQL
     #    script to update it.
-
-    # Open any files the bot needs.
-
-    # Contact any servers and services the bot needs to do its job.
 
     # Log into the XMPP server.  If it can't log in, try to register an account
     # with the server.  If it's a private server this shouldn't be a problem,
@@ -258,7 +299,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG,
                         format='%(levelname)-8s %(message)s')
     bot = ExocortexBot(owner, botname, username, password, muc, muclogin,
-        imalive)
+        imalive, responsefile)
 
     # Connect to the XMPP server and start processing messages.
     if bot.connect():
