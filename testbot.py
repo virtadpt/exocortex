@@ -75,6 +75,7 @@ class ExocortexBot(ClientXMPP):
     room = ""
     imalive = ""
     responsefile = ""
+    function = ""
 
     # Any customized responses for the bot go in this dict.  The idea is that
     # the user can define a case insensitive keyword (or phrase) to match
@@ -84,9 +85,17 @@ class ExocortexBot(ClientXMPP):
     # Schema: {"keyword": ["response0", "response1", ...], ...}
     responses = {}
 
+    # A list of commands defined on bots descended from this particular class.
+    # There's undoubtedly a better way to go about this, but it's late and I
+    # don't want to forget to do this.
+    commands = ['what is your name', 'robots (report)', 'status',
+                'add response', 'delete response', 'change/replace response',
+                'dump/list responses', 'shut down/shutdown', '(list) commands',
+                'help']
+
     """ Initialize the bot when it's instantiated. """
     def __init__(self, owner, botname, jid, password, room, room_announcement,
-        imalive, responsefile):
+        imalive, responsefile, function):
 
         self.owner = owner
         self.botname = botname.capitalize()
@@ -94,6 +103,7 @@ class ExocortexBot(ClientXMPP):
         self.room_announcement = room_announcement
         self.imalive = imalive
         self.responsefile = responsefile
+        self.function = function
 
         # Load the bot's customized responses from disk.
         loaded_responses = ""
@@ -124,12 +134,6 @@ class ExocortexBot(ClientXMPP):
         self.register_plugin('xep_0045') # MUC
         self.register_plugin('xep_0199') # Ping
 
-        # Log into database servers.
-        # If database does not exist, create it.
-        # If database does exist, check the version of the database schema.
-        # If the version of the tables is older then the current one, run the
-        #    SQL script to update it.
-
     """ Event handler the fires whenever an XMPP session starts (i.e., it
     logs into the server on this JID.  You can put just about any session
     initialization code here that you want.  The argument 'event' is an empty
@@ -159,9 +163,9 @@ class ExocortexBot(ClientXMPP):
             # To make parsing easier, lowercase the message body before
             # matching against it.
             message = msg['body'].lower()
-            if "what is your name" in message:
+            if "help" in message:
                 self.send_message(mto=msg['from'],
-                    mbody="My name is %s." % self.botname)
+                    mbody="Hello.  My name is %s.  I am a generic ExocortexBot bot.  %s  I support the following commands:\n\n%s" % (self.botname, self.function, self.commands))
                 return
 
             # If the user asks if the bot is alive, respond.
@@ -274,6 +278,12 @@ class ExocortexBot(ClientXMPP):
                     mbody="Current responses:\n%s" % str(self.responses))
                 return
 
+            # Print all known commands.
+            if "list commands" in message or "commands" in message:
+                self.send_message(mto=msg['from'],
+                    mbody="This Exocortex bot supports the following commands:\n %s" % str(self.commands))
+                return
+
             # If the user tells the bot to terminate, do so.
             # "quit"
             if "shut down" in message or "shutdown" in message:
@@ -381,8 +391,6 @@ if __name__ == '__main__':
     # extension, if there is one).
     botname = os.path.basename(__file__).split('.')[0]
 
-    # Read the global configuration file.
-
     # Read its unique configuration file.  Do this by taking the name of the
     # bot and appending '.conf' to it.  Then load it into a config file parser
     # object which has some defaults set on it.
@@ -395,6 +403,7 @@ if __name__ == '__main__':
     muc = config.get(botname, 'muc')
     muclogin = config.get(botname, 'muclogin')
     imalive = config.get(botname, 'imalive')
+    function = config.get(botname, 'function')
 
     # Figure out how to configure the logger.
     loglevel = config.get(botname, 'loglevel')
@@ -402,19 +411,13 @@ if __name__ == '__main__':
     # Get the filename of the response file from the config file.
     responsefile = config.get(botname, 'responsefile')
 
-    # Log into database servers.
-    # If database does not exist, create it.
-    # If database does exist, check the version of the database schema.
-    # If the version of the tables is older then the current one, run the SQL
-    #    script to update it.
-
     # Log into the XMPP server.  If it can't log in, try to register an account
     # with the server.  If it's a private server this shouldn't be a problem,
     # else print an error to stderr and ABEND.
     logging.basicConfig(level=logging.DEBUG,
                         format='%(levelname)-8s %(message)s')
     bot = ExocortexBot(owner, botname, username, password, muc, muclogin,
-        imalive, responsefile)
+        imalive, responsefile, function)
 
     # Connect to the XMPP server and start processing messages.
     if bot.connect():
