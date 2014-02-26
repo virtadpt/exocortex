@@ -202,8 +202,8 @@ class ExocortexBot(ClientXMPP):
 
             # Delete a response from the database.
             if "delete response" in message:
-                # response[0]: "add response"
-                # response[1]: (new) keyword
+                # response[0]: "delete response"
+                # response[1]: keyword
                 # response[2]: response
                 response = message.split(',')[1:]
                 old_keyword = response[0].strip()
@@ -219,6 +219,14 @@ class ExocortexBot(ClientXMPP):
                         self.responses[old_keyword].remove(old_response)
                         self.send_message(mto=msg['from'],
                             mbody="Response deleted.")
+
+                        # If the keyword is now empty, delete it from the
+                        # table.
+                        if not self.responses[old_keyword]:
+                            del self.responses[old_keyword]
+                            self.send_message(mto=msg['from'],
+                                mbody="Keyword '%s' deleted because it had an empty response list." % old_keyword)
+                    return
                 else:
                     # Keyword does not exist.
                     self.send_message(mto=msg['from'],
