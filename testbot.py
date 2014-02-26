@@ -182,8 +182,9 @@ class ExocortexBot(ClientXMPP):
                 new_keyword = response[0].strip()
                 new_response = response[1].strip()
 
-                # Keyword exists, response does not exist.
+                # Keyword exists.
                 if new_keyword in self.responses:
+                    # Response does not exist.
                     if new_response not in self.responses[new_keyword]:
                         self.responses[new_keyword].append(new_response)
                         self.send_message(mto=msg['from'],
@@ -209,8 +210,9 @@ class ExocortexBot(ClientXMPP):
                 old_keyword = response[0].strip()
                 old_response = response[1].strip()
 
-                # Keyword exists, response does not exist.
+                # Keyword exists.
                 if old_keyword in self.responses:
+                    # Response does not exist.
                     if old_response not in self.responses[old_keyword]:
                         self.send_message(mto=msg['from'],
                             mbody="That response does not exist.")
@@ -226,7 +228,6 @@ class ExocortexBot(ClientXMPP):
                             del self.responses[old_keyword]
                             self.send_message(mto=msg['from'],
                                 mbody="Keyword '%s' deleted because it had an empty response list." % old_keyword)
-                    return
                 else:
                     # Keyword does not exist.
                     self.send_message(mto=msg['from'],
@@ -234,14 +235,45 @@ class ExocortexBot(ClientXMPP):
                 return
 
             # Replace a response in the database.
+            # "change"
+            if "change response" in message or "replace response" in message:
+                # response[0]: "replace/change response"
+                # response[1]: keyword
+                # response[2]: old response
+                # response[3]: new response
+                response = message.split(',')[1:]
+                keyword = response[0].strip()
+                old_response = response[1].strip()
+                new_response = response[2].strip()
+
+                # Keyword exists.
+                if keyword in self.responses:
+                    # Response exists.
+                    if old_response in self.responses[keyword]:
+                        self.responses[keyword].append(new_response)
+                        self.responses[keyword].remove(old_response)
+                        self.send_message(mto=msg['from'],
+                            mbody="Response for keyword %s updated." %
+                                keyword)
+                    else:
+                        # Response does not exist.
+                        self.send_message(mto=msg['from'],
+                            mbody="Response for keyword %s does not exist." %
+                                keyword)
+                else:
+                    # Keyword does not exist.
+                    self.send_message(mto=msg['from'],
+                        mbody="Keyword %s does not exist." % keyword)
+                return
 
             # Print all responses for debugging.
-            if "dump responses" in message:
+            if "dump responses" in message or "list responses" in message:
                 self.send_message(mto=msg['from'],
                     mbody="Current responses:\n%s" % str(self.responses))
                 return
 
             # If the user tells the bot to terminate, do so.
+            # "quit"
             if "shut down" in message or "shutdown" in message:
                 self.send_message(mto=msg['from'],
                     mbody="%s is shutting down..." % (self.botname))
