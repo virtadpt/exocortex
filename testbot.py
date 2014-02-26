@@ -170,6 +170,9 @@ class ExocortexBot(ClientXMPP):
                     self.send_message(mto=msg['from'].bare, mbody=self.imalive,
                         mtype='groupchat')
 
+            # These responses only trigger if a command came from the bot's
+            # owner.
+
     """ Event handler that reacts to presence stanzas in chatrooms issued
     when a user joins the chat.  The argument 'presence' is a presence
     message. """
@@ -267,4 +270,4 @@ if __name__ == '__main__':
 # Clean up after ourselves.
 
 # Fin.
-sys.exit(0)
+
