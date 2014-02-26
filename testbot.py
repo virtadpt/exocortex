@@ -74,6 +74,7 @@ class ExocortexBot(ClientXMPP):
     botname = ""
     room = ""
     imalive = ""
+    responsefile = ""
 
     # Any customized responses for the bot go in this dict.  The idea is that
     # the user can define a case insensitive keyword (or phrase) to match
@@ -92,6 +93,7 @@ class ExocortexBot(ClientXMPP):
         self.room = room
         self.room_announcement = room_announcement
         self.imalive = imalive
+        self.responsefile = responsefile
 
         # Load the bot's customized responses from disk.
         loaded_responses = ""
@@ -280,9 +282,18 @@ class ExocortexBot(ClientXMPP):
                 self.disconnect(wait=True)
 
                 # Back up the response file.
+                old_responsefile = responsefile + ".bak"
+                if os.path.exists(old_responsefile):
+                    os.remove(old_responsefile)
+                if os.path.exists(responsefile):
+                    os.rename(responsefile, old_responsefile)
 
                 # Dump self.responses as a JSON document.
+                outfile = open(responsefile, 'w')
+                outfile.write(json.dumps(self.responses))
+                outfile.close()
 
+                # Bounce!
                 sys.exit(0)
 
             # If nothing else, match all of the keywords/phrases in the

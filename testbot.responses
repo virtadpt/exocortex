@@ -1,4 +1,1 @@
-{
-  "response1": ["foo!", "bar!", "baz!"],
-  "response2": ["alpha", "bravo", "charlie"]
-}
+{"foo": ["bar", "baz"], "response2": ["alpha", "bravo", "charlie", "delta"], "response1": ["foo!", "bar!", "baz!", "quux..."]}
