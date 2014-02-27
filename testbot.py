@@ -82,6 +82,10 @@ class ExocortexBot(ClientXMPP):
     # Schema: {"keyword": ["response0", "response1", ...], ...}
     responses = {}
 
+    # Attribute that stores the MUC nick the bot's owner is using, which isn't
+    # the same as their JID.
+    owner_muc_nic = ""
+
     # A list of commands defined on bots descended from this particular class.
     # There's undoubtedly a better way to go about this, but it's late and I
     # don't want to forget to do this.
@@ -326,15 +330,14 @@ class ExocortexBot(ClientXMPP):
         # If an incoming message came from the bot, ignore it to prevent an
         # infinite loop.
         if msg['type'] in ('groupchat'):
+            # Only respond to commands from the bot's registered owner.
+
             # These responses only trigger if the bot's name is somewhere in
             # the body of the message.
             if msg['mucnick'] != self.botname and self.botname in msg['body']:
                 self.send_message(mto=msg['from'].bare,
                     mbody="I heard that. %s said to me:\n%s" % (msg['mucnick'],
                     msg['body']), mtype='groupchat')
-
-            # These responses only trigger if a command came from the bot's
-            # owner.
 
             # These responses only trigger if a message did not originate with
             # the bot in question.
