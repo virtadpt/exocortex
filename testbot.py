@@ -23,10 +23,6 @@
 # - This can be a command in the MUC, a private command, or a signal from a
 #   shell.
 
-# - If commanded to shut down from the MUC, a command over a private channel,
-#   or an OS signal, it will go through its cleanup-and-shutdwon procedure,
-#   announce that it's going offline, and terminate.
-
 # This base class must be instantiated before it can be turned into a bot.  It
 # is designed to be extensible to transform it into a bot of any different
 # kind.  The filename of the bot is the name it considers its own.  For
@@ -54,6 +50,7 @@ import json
 import os
 import random
 import resource
+import string
 import sys
 import logging
 from sleekxmpp import ClientXMPP
@@ -160,6 +157,13 @@ class ExocortexBot(ClientXMPP):
     def message(self, msg):
         # Potential message types: normal, chat, error, headline, groupchat
         if msg['type'] in ('chat', 'normal'):
+            # If it's not the bot's owner messaging, ignore.
+            msg_from = str(msg.getFrom())
+            msg_from = string.split(msg_from, '/')[0]
+            if msg_from != self.owner:
+                print "\n\nChat request did not come from self.owner.\n\n"
+                return
+
             # To make parsing easier, lowercase the message body before
             # matching against it.
             message = msg['body'].lower()
@@ -329,6 +333,9 @@ class ExocortexBot(ClientXMPP):
                     mbody="I heard that. %s said to me:\n%s" % (msg['mucnick'],
                     msg['body']), mtype='groupchat')
 
+            # These responses only trigger if a command came from the bot's
+            # owner.
+
             # These responses only trigger if a message did not originate with
             # the bot in question.
             if msg['mucnick'] != self.botname:
@@ -336,9 +343,6 @@ class ExocortexBot(ClientXMPP):
                 if "robots, report" in msg['body']:
                     self.send_message(mto=msg['from'].bare, mbody=self.imalive,
                         mtype='groupchat')
-
-            # These responses only trigger if a command came from the bot's
-            # owner.
 
     """ Event handler that reacts to presence stanzas in chatrooms issued
     when a user joins the chat.  The argument 'presence' is a presence
