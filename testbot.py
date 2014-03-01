@@ -69,6 +69,7 @@ class ExocortexBot(ClientXMPP):
     # Class attributes go up here so they're easy to find.
     owner = ""
     botname = ""
+    jid = ""
     room = ""
     imalive = ""
     responsefile = ""
@@ -100,6 +101,7 @@ class ExocortexBot(ClientXMPP):
 
         self.owner = owner
         self.botname = botname.capitalize()
+        self.jid = jid
         self.room = room
         self.room_announcement = room_announcement
         self.imalive = imalive
@@ -152,9 +154,9 @@ class ExocortexBot(ClientXMPP):
         joined = self.plugin['xep_0045'].joinMUC(self.room, self.botname,
             wait=True)
         if joined:
-            print self.botname + " has successfully joined MUC " + self.room
+            self.send_message(mto=self.owner, mbody="%s has successfully joined %s." % (self.botname, self.room))
         else:
-            print "There was a problem with " + self.botname + " joining " + self.room
+            self.send_message(mto=self.owner, mbody="%s was unable to join %s.  Please check the error logs to see what happened." % (self.botname, self.room))
 
     """ Event handler that fires whenever a message is sent to this JID. The
     argument 'msg' represents a message stanza. """
@@ -331,6 +333,30 @@ class ExocortexBot(ClientXMPP):
         # infinite loop.
         if msg['type'] in ('groupchat'):
             # Only respond to commands from the bot's registered owner.
+            # Fields in a query:
+            # to, query, type, id, from, disco_items, lang
+            query = self.make_iq_get(queryxmlns='http://jabber.org/protocol/disco#items', ito=self.room, ifrom=self.jid)
+            try:
+                response = query.send()
+            except IqError as e:
+                error = e.iq
+                print "\n\nError sending: " + str(error) + "\n\n"
+            except IqTimeout:
+                print "\n\nIq send timeout.\n\n"
+
+            # Fields in a query response:
+            # to, query, type, id, from, disco_items, lang
+
+            # Fields in response['disco_items']:
+            # node, items, item, lang, substanzas
+
+            for item in response['disco_items']['items']:
+                if item[2] != self.botname:
+                    query = self.make_iq_get(queryxmlns='jabber:iq:search', ito=self.room, ifrom=self.jid)
+                    response = query.send()
+                    print "\n\n" + str(response) + "\n\n"
+
+                print item[0] + " ===== " + item[2]
 
             # These responses only trigger if the bot's name is somewhere in
             # the body of the message.

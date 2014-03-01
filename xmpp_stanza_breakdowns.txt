@@ -1,0 +1,2 @@
+Notes on how SleekXMPP handles XMPP stanzas internally:
+
