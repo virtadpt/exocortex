@@ -99,7 +99,8 @@ class ExocortexBot(ClientXMPP):
     def __init__(self, owner, botname, jid, password, room, room_announcement,
         imalive, responsefile, function):
 
-        self.owner = owner
+        self.owner = owner.split()[0]
+        self.owner_muc_nick = string.join(owner.split()[1:]).strip('(').strip(')')
         self.botname = botname.capitalize()
         self.jid = jid
         self.room = room
@@ -329,49 +330,31 @@ class ExocortexBot(ClientXMPP):
     """ Event handler that fields messages addressed to the bot when they come
     from a chatroom.  The argument 'msg' represents a message stanza. """
     def groupchat(self, msg):
-        # If an incoming message came from the bot, ignore it to prevent an
-        # infinite loop.
-        if msg['type'] in ('groupchat'):
-            # Only respond to commands from the bot's registered owner.
-            # Fields in a query:
-            # to, query, type, id, from, disco_items, lang
-            query = self.make_iq_get(queryxmlns='http://jabber.org/protocol/disco#items', ito=self.room, ifrom=self.jid)
-            try:
-                response = query.send()
-            except IqError as e:
-                error = e.iq
-                print "\n\nError sending: " + str(error) + "\n\n"
-            except IqTimeout:
-                print "\n\nIq send timeout.\n\n"
+        # Stuff in this method only triggers if the incoming message did not
+        # come from the bot itself.  This is to prevent infinite loops.
+        if msg['type'] == 'groupchat' and msg['mucnick'] != self.botname:
+            # Only respond to commands from the bot's registered owner,
+            # determined by MUC nick.  In XEP-0055, that comes in the form of
+            # a resource attached to the MUC's JID.
+            sender = msg['from'].resource
 
-            # Fields in a query response:
-            # to, query, type, id, from, disco_items, lang
-
-            # Fields in response['disco_items']:
-            # node, items, item, lang, substanzas
-
-            for item in response['disco_items']['items']:
-                if item[2] != self.botname:
-                    query = self.make_iq_get(queryxmlns='jabber:iq:search', ito=self.room, ifrom=self.jid)
-                    response = query.send()
-                    print "\n\n" + str(response) + "\n\n"
-
-                print item[0] + " ===== " + item[2]
-
-            # These responses only trigger if the bot's name is somewhere in
-            # the body of the message.
-            if msg['mucnick'] != self.botname and self.botname in msg['body']:
+            # This is a test message to see if the bot is functioning.
+            if self.botname in msg['body']:
                 self.send_message(mto=msg['from'].bare,
                     mbody="I heard that. %s said to me:\n%s" % (msg['mucnick'],
                     msg['body']), mtype='groupchat')
+                return
 
-            # These responses only trigger if a message did not originate with
-            # the bot in question.
-            if msg['mucnick'] != self.botname:
+            # For every occupant in the room, query its JID and see if it
+            # matches the bot's owner's JID.  If it does, parse the message
+            # and figure out what to do.
+            if sender == self.owner_muc_nick:
+                # This is where the specialized stuff that different kinds
+                # of bots do gets triggered.
                 # "Robots, report."
                 if "robots, report" in msg['body']:
-                    self.send_message(mto=msg['from'].bare, mbody=self.imalive,
-                        mtype='groupchat')
+                    self.send_message(mto=msg['from'].bare,
+                        mbody=self.imalive, mtype='groupchat')
 
     """ Event handler that reacts to presence stanzas in chatrooms issued
     when a user joins the chat.  The argument 'presence' is a presence

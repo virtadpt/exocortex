@@ -1,2 +1,96 @@
+# -*- coding: utf-8 -*-
+# vim: set expandtab tabstop=4 shiftwidth=4 :
+
 Notes on how SleekXMPP handles XMPP stanzas internally:
 
+When a user joins a MUC, the identity looks like <room@service/nick>
+
+Rooms have their own JIDs.
+
+This is what a message from a user to another user inside a MUC looks like:
+<message to="testbot@localhost/2b8e9a49-f36d-4df7-9a6b-3ea8cfdcd941"
+	type="groupchat"
+	id="O59A4-39"
+	from="thestarchamber@conference.localhost/The Doctor">
+	<body>Testbot</body>
+</message>
+
+This is what a request to list the JIDs in a MUC looks like.  The id field is
+the RoomID, which appears to be a GUID.
+
+<iq to="thestarchamber@conference.localhost"
+	type="get"
+	id="f19f4ee5-5665-4109-80b7-a8f774db740f-5"
+	from="testbot@localhost">
+	<query xmlns="http://jabber.org/protocol/disco#items" />
+</iq>
+
+A response to such a query looks like this:
+<iq to="testbot@localhost/de2a74da-382e-4401-9535-564b137fe938"
+	type="result"
+	id="f19f4ee5-5665-4109-80b7-a8f774db740f-5"
+	from="thestarchamber@conference.localhost">
+	<query xmlns="http://jabber.org/protocol/disco#items">
+		<item jid="thestarchamber@conference.localhost/Testbot"
+			name="Testbot" />
+		<item jid="thestarchamber@conference.localhost/The Doctor"
+			name="The Doctor" />
+	</query>
+</iq>
+
+A discovery request can be sent to any of the returned JIDs.
+
+Attributes of JID (from sleekxmpp.xmlstream.JID):
+    string: full (full JID (user@host/resource))
+    string: bare (bare JID (user@host))
+    string: user/username/local/node (username)
+    string: domain/server/host (domain part of a JID)
+    string: resource (resource part of a JID)
+
+Attributes of an Iq stanza (from sleekxmpp.basexmpp.make_iq()):
+    string: id
+    JID: ifrom
+    JID: ito
+    string: itype (get, set, result, error)
+    string: iquery (query element namespace)
+    string: lang (optional)
+
+Attributes of an Iq response stanza (from sleekxmpp.basexmpp.make_iq()):
+    JID: ito
+    string: iquery (query element namespace)
+    string: itype (get, set, result, error)
+    string: id
+    JID: ifrom (user, MUC room)
+    list: disco_items
+          string: node (query element namespace)
+          list: item
+              [0]: JID
+              [1]: None (Python literal)
+              [2]: nick
+
+Attributes of a message stanza (from sleekxmpp.basexmpp.make_message()):
+    JID: mto
+    string: mbody
+    string: msubject (optional)
+    string: mtype (chat, groupchat)
+    string: mhtml (mbody as HTML (optional))
+    JID: mfrom
+    string: mnick
+
+Attributes of a groupchat message (from the dict msg.values):
+    string: lang
+    string: body
+    JID: from
+    string: type (groupchat)
+    string: mucnick
+    JID: mucroom
+    JID: to
+
+Attributes of a presence stanza (from sleekxmpp.basexmpp.make_presence()):
+    ?: pshow
+    string: pstatus (status message)
+    string: ppriority (priority message)
+    JID: pto
+    string: ptype (subscribe)
+    JID: pfrom
+    string: pnick
