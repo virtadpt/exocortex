@@ -236,7 +236,10 @@ class ExocortexBot(ClientXMPP):
                 return
 
     """ Event handler that fields messages addressed to the bot when they come
-    from a chatroom.  The argument 'msg' represents a message stanza. """
+    from a chatroom.  The argument 'msg' represents a message stanza.
+    Ideally, this is where the actual fun commands that you'd give bots go, so
+    you don't have to flip around between chat windows to see what's going on.
+    """
     def groupchat(self, msg):
         # Stuff in this method only triggers if the incoming message did not
         # come from the bot itself.  This is to prevent infinite loops.
@@ -245,13 +248,6 @@ class ExocortexBot(ClientXMPP):
             # determined by MUC nick.  In XEP-0055, that comes in the form of
             # a resource attached to the MUC's JID.
             sender = msg['from'].resource
-
-            # This is a test message to see if the bot is functioning.
-            if self.botname in msg['body']:
-                self.send_message(mto=msg['from'].bare,
-                    mbody="I heard that. %s said to me:\n%s" % (msg['mucnick'],
-                    msg['body']), mtype='groupchat')
-                return
 
             # For every occupant in the room, query its JID and see if it
             # matches the bot's owner's JID.  If it does, parse the message
@@ -263,14 +259,15 @@ class ExocortexBot(ClientXMPP):
                 if "robots, report" in msg['body']:
                     self.send_message(mto=msg['from'].bare,
                         mbody=self.imalive, mtype='groupchat')
+                    return
 
-    """ Event handler that reacts to presence stanzas in chatrooms issued
-    when a user joins the chat.  The argument 'presence' is a presence
-    message. """
-    def muc_online(self, presence):
-        if presence['muc']['nick'] != self.botname:
-            self.send_message(mto=presence['from'].bare,
-                mbody=self.room_announcement, mtype='groupchat')
+                # Shut down the bot.
+                if "shutdown" in msg['body'] or "shut down" in msg['body']:
+                    self.send_message(mto=msg['from'].bare,
+                        mbody="%s is shutting down..." % self.botname,
+                        mtype='groupchat')
+                    self.shutdown(msg['from'])
+                    return
 
     """ Helper method that allows the user to add a random response given
     by the bot.  The argument 'message' is a chat message from the bot's owner
@@ -369,6 +366,14 @@ class ExocortexBot(ClientXMPP):
                 mbody="Keyword %s does not exist." % keyword)
         return
 
+    """ Event handler that reacts to presence stanzas in chatrooms issued
+    when a user joins the chat.  The argument 'presence' is a presence
+    message. """
+    def muc_online(self, presence):
+        if presence['muc']['nick'] != self.botname:
+            self.send_message(mto=presence['from'].bare,
+                mbody=self.room_announcement, mtype='groupchat')
+
     """ Helper method that cleanly shuts down the bot.  Broken out so that
     it's not part of the parser's code, plus it makes it overloadable in the
     future so that subclasses can extend it. The argument 'destination' is the
@@ -376,7 +381,7 @@ class ExocortexBot(ClientXMPP):
     def shutdown(self, destination):
         # Alert the user that the bot is shutting down...
         self.send_message(mto=destination,
-                    mbody="%s is shutting down..." % self.botname)
+            mbody="%s is shutting down..." % self.botname)
         self.send_message(mto=destination,
             mbody="%s is shutting down..." % self.botname, mtype='groupchat')
         self.disconnect(wait=True)
