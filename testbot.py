@@ -194,30 +194,7 @@ class ExocortexBot(ClientXMPP):
 
             # Add a response to the database.
             if "add response" in message:
-                # response[0]: "add response"
-                # response[1]: (new) keyword
-                # response[2]: response
-                response = message.split(',')[1:]
-                new_keyword = response[0].strip()
-                new_response = response[1].strip()
-
-                # Keyword exists.
-                if new_keyword in self.responses:
-                    # Response does not exist.
-                    if new_response not in self.responses[new_keyword]:
-                        self.responses[new_keyword].append(new_response)
-                        self.send_message(mto=msg['from'],
-                            mbody="New response for keyword %s saved." %
-                            new_keyword)
-                    else:
-                        self.send_message(mto=msg['from'],
-                            mbody="That response exists already.")
-                else:
-                    # New keyword, new response.
-                    self.responses[new_keyword] = []
-                    self.responses[new_keyword].append(new_response)
-                    self.send_message(mto=msg['from'],
-                        mbody="New keyword and response saved.")
+                self.add_response(message, msg['from'])
                 return
 
             # Delete a response from the database.
@@ -294,6 +271,36 @@ class ExocortexBot(ClientXMPP):
         if presence['muc']['nick'] != self.botname:
             self.send_message(mto=presence['from'].bare,
                 mbody=self.room_announcement, mtype='groupchat')
+
+    """ Helper method that allows the user to add a random response given
+    by the bot.  The argument 'message' is a chat message from the bot's owner
+    containing the response to delete.  The argument 'destination' is the JID
+    to send the response to. """
+    def add_response(self, message, destination):
+        # response[0]: "add response"
+        # response[1]: (new) keyword
+        # response[2]: response
+        response = message.split(',')[1:]
+        new_keyword = response[0].strip()
+        new_response = response[1].strip()
+
+        # Keyword exists.
+        if new_keyword in self.responses:
+            # Response does not exist.
+            if new_response not in self.responses[new_keyword]:
+                self.responses[new_keyword].append(new_response)
+                self.send_message(mto=destination,
+                    mbody="New response for keyword %s saved." % new_keyword)
+            else:
+                self.send_message(mto=destination,
+                    mbody="That response exists already.")
+        else:
+            # New keyword, new response.
+            self.responses[new_keyword] = []
+            self.responses[new_keyword].append(new_response)
+            self.send_message(mto=destination,
+                mbody="New keyword and response saved.")
+        return
 
     """ Helper method that allows the user to delete a random response given
     by the bot.  The argument 'message' is a chat message from the bot's owner
