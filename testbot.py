@@ -469,8 +469,8 @@ if __name__ == '__main__':
 
     # Define command line switches for the bot, starting with being able to
     # specify an arbitrary configuration file for a particular bot.
-    optionparser.add_option('-c', '--conf', dest="configfile",
-        help='Specify an arbitrary config file for this bot.  Defaults to botname.conf.')
+    optionparser.add_option('-c', '--conf', dest='configfile', action='store',
+        type='string', help='Specify an arbitrary config file for this bot.  Defaults to botname.conf.')
 
     # Parse the command line args.
     (options, args) = optionparser.parse_args()
@@ -481,7 +481,7 @@ if __name__ == '__main__':
     # parser object.
     config = ConfigParser.ConfigParser()
     if options.configfile:
-        config.read(options.config)
+        config.read(options.configfile)
     else:
         config.read(botname + '.conf')
 
