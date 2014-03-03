@@ -472,6 +472,13 @@ if __name__ == '__main__':
     optionparser.add_option('-c', '--conf', dest='configfile', action='store',
         type='string', help='Specify an arbitrary config file for this bot.  Defaults to botname.conf.')
 
+    # Add a command line option that lets you override the config file's
+    # loglevel.  This is for kicking a bot into debug mode without having to
+    # edit the config file.
+    optionparser.add_option('-l', '--loglevel', dest='loglevel',
+        action='store_const', default=logging.INFO, const=logging.INFO,
+        help='Specify the default logging level of the bot.  Choose from CRITICAL, ERROR, WARNING, INFO, DEBUG, NOTSET.  Defaults to INFO.')
+
     # Parse the command line args.
     (options, args) = optionparser.parse_args()
 
@@ -495,7 +502,10 @@ if __name__ == '__main__':
     function = config.get(botname, 'function')
 
     # Figure out how to configure the logger.
-    loglevel = config.get(botname, 'loglevel')
+    if options.loglevel:
+        loglevel = options.loglevel
+    else:
+        loglevel = config.get(botname, 'loglevel')
 
     # Get the filename of the response file from the config file.
     responsefile = config.get(botname, 'responsefile')
@@ -503,8 +513,7 @@ if __name__ == '__main__':
     # Log into the XMPP server.  If it can't log in, try to register an account
     # with the server.  If it's a private server this shouldn't be a problem,
     # else print an error to stderr and ABEND.
-    logging.basicConfig(level=logging.DEBUG,
-                        format='%(levelname)-8s %(message)s')
+    logging.basicConfig(level=loglevel, format='%(levelname)-8s %(message)s')
     bot = ExocortexBot(owner, botname, username, password, muc, muclogin,
         imalive, responsefile, function)
 
