@@ -162,7 +162,8 @@ class ExocortexBot(ClientXMPP):
             self.send_message(mto=self.owner,mbody="%s was unable to join %s.  Please check the error logs to see what happened." % (self.botname, self.room))
 
     """ Event handler that fires whenever a message is sent to this JID. The
-    argument 'msg' represents a message stanza. """
+    argument 'msg' represents a message stanza.  This method is meant to be
+    extensible when the base class is used to build other kinds of bots. """
     def message(self, msg):
         # Potential message types: normal, chat, error, headline, groupchat
         if msg['type'] in ('chat', 'normal'):
@@ -249,6 +250,10 @@ class ExocortexBot(ClientXMPP):
             # a resource attached to the MUC's JID.
             sender = msg['from'].resource
 
+            # To make parsing easier, lowercase the message body before
+            # matching against it.
+            message = msg['body'].lower()
+
             # For every occupant in the room, query its JID and see if it
             # matches the bot's owner's JID.  If it does, parse the message
             # and figure out what to do.
@@ -256,13 +261,26 @@ class ExocortexBot(ClientXMPP):
                 # This is where the specialized stuff that different kinds
                 # of bots do gets triggered.
                 # "Robots, report."
-                if "robots, report" in msg['body']:
+                if "robots, report" in message:
                     self.send_message(mto=msg['from'].bare,
                         mbody=self.imalive, mtype='groupchat')
                     return
 
+                # If the bot's MUC name isn't in the body of the message past
+                # this point, ignore the command by returning from the method.
+                #if self.botname not in message:
+                #    print "\n\n" + self.botname + " is ignoring message.\n\n"
+                #    return
+
+                # Ask the bot to list the commands it recognizes.
+                if "list commands" in message:
+                    self.send_message(mto=msg['from'].bare,
+                        mbody="%s supports the following commands:\n %s" %
+                        (self.botname, str(self.commands)), mtype='groupchat')
+                    return
+
                 # Shut down the bot.
-                if "shutdown" in msg['body'] or "shut down" in msg['body']:
+                if "shutdown" in message or "shut down" in message:
                     self.send_message(mto=msg['from'].bare,
                         mbody="%s is shutting down..." % self.botname,
                         mtype='groupchat')
