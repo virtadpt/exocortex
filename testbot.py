@@ -47,6 +47,7 @@
 # Load modules.
 import ConfigParser
 import json
+from optparse import OptionParser
 import os
 import random
 import resource
@@ -463,12 +464,28 @@ if __name__ == '__main__':
     # extension, if there is one).
     botname = os.path.basename(__file__).split('.')[0]
 
-    # Read its unique configuration file.  Do this by taking the name of the
-    # bot and appending '.conf' to it.  Then load it into a config file parser
-    # object which has some defaults set on it.
-    config = ConfigParser.ConfigParser()
-    config .read(botname + '.conf')
+    # Instantiate a command line options parser.
+    optionparser = OptionParser()
 
+    # Define command line switches for the bot, starting with being able to
+    # specify an arbitrary configuration file for a particular bot.
+    optionparser.add_option('-c', '--conf', dest="configfile",
+        help='Specify an arbitrary config file for this bot.  Defaults to botname.conf.')
+
+    # Parse the command line args.
+    (options, args) = optionparser.parse_args()
+
+    # Read its unique configuration file.  There is a command line argument
+    # for specifying a configuration file, but it default to taking the name
+    # of the bot and appending '.conf' to it.  Then load it into a config file
+    # parser object.
+    config = ConfigParser.ConfigParser()
+    if options.configfile:
+        config.read(options.config)
+    else:
+        config.read(botname + '.conf')
+
+    # Get configuration options out of whichever configuration file gets used.
     owner = config.get(botname, 'owner')
     username = config.get(botname, 'username')
     password = config.get(botname, 'password')
@@ -497,8 +514,6 @@ if __name__ == '__main__':
     else:
         print "ERROR: Unable to connect to XMPP server."
         sys.exit(1)
-
-# Clean up after ourselves.
 
 # Fin.
 
