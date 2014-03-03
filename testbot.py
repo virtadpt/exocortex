@@ -268,9 +268,10 @@ class ExocortexBot(ClientXMPP):
 
                 # If the bot's MUC name isn't in the body of the message past
                 # this point, ignore the command by returning from the method.
-                #if self.botname not in message:
-                #    print "\n\n" + self.botname + " is ignoring message.\n\n"
-                #    return
+                # We do it this way because message bodies are coerced into
+                # all lowercase before parsing.
+                if self.botname.lower() not in message:
+                    return
 
                 # Ask the bot to list the commands it recognizes.
                 if "list commands" in message:
