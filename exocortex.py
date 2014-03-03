@@ -23,10 +23,6 @@
 # - This can be a command in the MUC, a private command, or a signal from a
 #   shell.
 
-# - If commanded to shut down from the MUC, a command over a private channel,
-#   or an OS signal, it will go through its cleanup-and-shutdwon procedure,
-#   announce that it's going offline, and terminate.
-
 # This base class must be instantiated before it can be turned into a bot.  It
 # is designed to be extensible to transform it into a bot of any different
 # kind.  The filename of the bot is the name it considers its own.  For
@@ -54,6 +50,7 @@ import json
 import os
 import random
 import resource
+import string
 import sys
 import logging
 from sleekxmpp import ClientXMPP
@@ -72,6 +69,7 @@ class ExocortexBot(ClientXMPP):
     # Class attributes go up here so they're easy to find.
     owner = ""
     botname = ""
+    jid = ""
     room = ""
     imalive = ""
     responsefile = ""
@@ -85,6 +83,10 @@ class ExocortexBot(ClientXMPP):
     # Schema: {"keyword": ["response0", "response1", ...], ...}
     responses = {}
 
+    # Attribute that stores the MUC nick the bot's owner is using, which isn't
+    # the same as their JID.
+    owner_muc_nic = ""
+
     # A list of commands defined on bots descended from this particular class.
     # There's undoubtedly a better way to go about this, but it's late and I
     # don't want to forget to do this.
@@ -97,8 +99,10 @@ class ExocortexBot(ClientXMPP):
     def __init__(self, owner, botname, jid, password, room, room_announcement,
         imalive, responsefile, function):
 
-        self.owner = owner
+        self.owner = owner.split()[0]
+        self.owner_muc_nick = string.join(owner.split()[1:]).strip('(').strip(')')
         self.botname = botname.capitalize()
+        self.jid = jid
         self.room = room
         self.room_announcement = room_announcement
         self.imalive = imalive
@@ -151,15 +155,25 @@ class ExocortexBot(ClientXMPP):
         joined = self.plugin['xep_0045'].joinMUC(self.room, self.botname,
             wait=True)
         if joined:
-            print self.botname + " has successfully joined MUC " + self.room
+            self.send_message(mto=self.owner,
+                mbody="%s has successfully joined %s." %
+                (self.botname, self.room))
         else:
-            print "There was a problem with " + self.botname + " joining " + self.room
+            self.send_message(mto=self.owner,mbody="%s was unable to join %s.  Please check the error logs to see what happened." % (self.botname, self.room))
 
     """ Event handler that fires whenever a message is sent to this JID. The
-    argument 'msg' represents a message stanza. """
+    argument 'msg' represents a message stanza.  This method is meant to be
+    extensible when the base class is used to build other kinds of bots. """
     def message(self, msg):
         # Potential message types: normal, chat, error, headline, groupchat
         if msg['type'] in ('chat', 'normal'):
+            # If it's not the bot's owner messaging, ignore.
+            msg_from = str(msg.getFrom())
+            msg_from = string.split(msg_from, '/')[0]
+            if msg_from != self.owner:
+                print "\n\nChat request did not come from self.owner.\n\n"
+                return
+
             # To make parsing easier, lowercase the message body before
             # matching against it.
             message = msg['body'].lower()
@@ -181,95 +195,18 @@ class ExocortexBot(ClientXMPP):
 
             # Add a response to the database.
             if "add response" in message:
-                # response[0]: "add response"
-                # response[1]: (new) keyword
-                # response[2]: response
-                response = message.split(',')[1:]
-                new_keyword = response[0].strip()
-                new_response = response[1].strip()
-
-                # Keyword exists.
-                if new_keyword in self.responses:
-                    # Response does not exist.
-                    if new_response not in self.responses[new_keyword]:
-                        self.responses[new_keyword].append(new_response)
-                        self.send_message(mto=msg['from'],
-                            mbody="New response for keyword %s saved." %
-                            new_keyword)
-                    else:
-                        self.send_message(mto=msg['from'],
-                            mbody="That response exists already.")
-                else:
-                    # New keyword, new response.
-                    self.responses[new_keyword] = []
-                    self.responses[new_keyword].append(new_response)
-                    self.send_message(mto=msg['from'],
-                        mbody="New keyword and response saved.")
+                self.add_response(message, msg['from'])
                 return
 
             # Delete a response from the database.
             if "delete response" in message:
-                # response[0]: "delete response"
-                # response[1]: keyword
-                # response[2]: response
-                response = message.split(',')[1:]
-                old_keyword = response[0].strip()
-                old_response = response[1].strip()
-
-                # Keyword exists.
-                if old_keyword in self.responses:
-                    # Response does not exist.
-                    if old_response not in self.responses[old_keyword]:
-                        self.send_message(mto=msg['from'],
-                            mbody="That response does not exist.")
-                    else:
-                        # Response exists.
-                        self.responses[old_keyword].remove(old_response)
-                        self.send_message(mto=msg['from'],
-                            mbody="Response deleted.")
-
-                        # If the keyword is now empty, delete it from the
-                        # table.
-                        if not self.responses[old_keyword]:
-                            del self.responses[old_keyword]
-                            self.send_message(mto=msg['from'],
-                                mbody="Keyword '%s' deleted because it had an empty response list." % old_keyword)
-                else:
-                    # Keyword does not exist.
-                    self.send_message(mto=msg['from'],
-                        mbody="That keyword does not exist.")
+                self.delete_response(message, msg['from'])
                 return
 
             # Replace a response in the database.
             # "change"
             if "change response" in message or "replace response" in message:
-                # response[0]: "replace/change response"
-                # response[1]: keyword
-                # response[2]: old response
-                # response[3]: new response
-                response = message.split(',')[1:]
-                keyword = response[0].strip()
-                old_response = response[1].strip()
-                new_response = response[2].strip()
-
-                # Keyword exists.
-                if keyword in self.responses:
-                    # Response exists.
-                    if old_response in self.responses[keyword]:
-                        self.responses[keyword].append(new_response)
-                        self.responses[keyword].remove(old_response)
-                        self.send_message(mto=msg['from'],
-                            mbody="Response for keyword %s updated." %
-                                keyword)
-                    else:
-                        # Response does not exist.
-                        self.send_message(mto=msg['from'],
-                            mbody="Response for keyword %s does not exist." %
-                                keyword)
-                else:
-                    # Keyword does not exist.
-                    self.send_message(mto=msg['from'],
-                        mbody="Keyword %s does not exist." % keyword)
+                self.change_response(message, msg['from'])
                 return
 
             # Print all responses for debugging.
@@ -287,24 +224,7 @@ class ExocortexBot(ClientXMPP):
             # If the user tells the bot to terminate, do so.
             # "quit"
             if "shut down" in message or "shutdown" in message:
-                self.send_message(mto=msg['from'],
-                    mbody="%s is shutting down..." % (self.botname))
-                self.disconnect(wait=True)
-
-                # Back up the response file.
-                old_responsefile = responsefile + ".bak"
-                if os.path.exists(old_responsefile):
-                    os.remove(old_responsefile)
-                if os.path.exists(responsefile):
-                    os.rename(responsefile, old_responsefile)
-
-                # Dump self.responses as a JSON document.
-                outfile = open(responsefile, 'w')
-                outfile.write(json.dumps(self.responses))
-                outfile.close()
-
-                # Bounce!
-                sys.exit(0)
+                self.shutdown(msg['from'])
 
             # If nothing else, match all of the keywords/phrases in the
             # response file against the message body and pick one of the
@@ -317,28 +237,153 @@ class ExocortexBot(ClientXMPP):
                 return
 
     """ Event handler that fields messages addressed to the bot when they come
-    from a chatroom.  The argument 'msg' represents a message stanza. """
+    from a chatroom.  The argument 'msg' represents a message stanza.
+    Ideally, this is where the actual fun commands that you'd give bots go, so
+    you don't have to flip around between chat windows to see what's going on.
+    """
     def groupchat(self, msg):
-        # If an incoming message came from the bot, ignore it to prevent an
-        # infinite loop.
-        if msg['type'] in ('groupchat'):
-            # These responses only trigger if the bot's name is somewhere in
-            # the body of the message.
-            if msg['mucnick'] != self.botname and self.botname in msg['body']:
-                self.send_message(mto=msg['from'].bare,
-                    mbody="I heard that. %s said to me:\n%s" % (msg['mucnick'],
-                    msg['body']), mtype='groupchat')
+        # Stuff in this method only triggers if the incoming message did not
+        # come from the bot itself.  This is to prevent infinite loops.
+        if msg['type'] == 'groupchat' and msg['mucnick'] != self.botname:
+            # Only respond to commands from the bot's registered owner,
+            # determined by MUC nick.  In XEP-0055, that comes in the form of
+            # a resource attached to the MUC's JID.
+            sender = msg['from'].resource
 
-            # These responses only trigger if a message did not originate with
-            # the bot in question.
-            if msg['mucnick'] != self.botname:
+            # To make parsing easier, lowercase the message body before
+            # matching against it.
+            message = msg['body'].lower()
+
+            # For every occupant in the room, query its JID and see if it
+            # matches the bot's owner's JID.  If it does, parse the message
+            # and figure out what to do.
+            if sender == self.owner_muc_nick:
+                # This is where the specialized stuff that different kinds
+                # of bots do gets triggered.
                 # "Robots, report."
-                if "robots, report" in msg['body']:
-                    self.send_message(mto=msg['from'].bare, mbody=self.imalive,
-                        mtype='groupchat')
+                if "robots, report" in message:
+                    self.send_message(mto=msg['from'].bare,
+                        mbody=self.imalive, mtype='groupchat')
+                    return
 
-            # These responses only trigger if a command came from the bot's
-            # owner.
+                # If the bot's MUC name isn't in the body of the message past
+                # this point, ignore the command by returning from the method.
+                # We do it this way because message bodies are coerced into
+                # all lowercase before parsing.
+                if self.botname.lower() not in message:
+                    return
+
+                # Ask the bot to list the commands it recognizes.
+                if "list commands" in message:
+                    self.send_message(mto=msg['from'].bare,
+                        mbody="%s supports the following commands:\n %s" %
+                        (self.botname, str(self.commands)), mtype='groupchat')
+                    return
+
+                # Shut down the bot.
+                if "shutdown" in message or "shut down" in message:
+                    self.send_message(mto=msg['from'].bare,
+                        mbody="%s is shutting down..." % self.botname,
+                        mtype='groupchat')
+                    self.shutdown(msg['from'])
+                    return
+
+    """ Helper method that allows the user to add a random response given
+    by the bot.  The argument 'message' is a chat message from the bot's owner
+    containing the response to delete.  The argument 'destination' is the JID
+    to send the response to. """
+    def add_response(self, message, destination):
+        # response[0]: "add response"
+        # response[1]: (new) keyword
+        # response[2]: response
+        response = message.split(',')[1:]
+        new_keyword = response[0].strip()
+        new_response = response[1].strip()
+
+        # Keyword exists.
+        if new_keyword in self.responses:
+            # Response does not exist.
+            if new_response not in self.responses[new_keyword]:
+                self.responses[new_keyword].append(new_response)
+                self.send_message(mto=destination,
+                    mbody="New response for keyword %s saved." % new_keyword)
+            else:
+                self.send_message(mto=destination,
+                    mbody="That response exists already.")
+        else:
+            # New keyword, new response.
+            self.responses[new_keyword] = []
+            self.responses[new_keyword].append(new_response)
+            self.send_message(mto=destination,
+                mbody="New keyword and response saved.")
+        return
+
+    """ Helper method that allows the user to delete a random response given
+    by the bot.  The argument 'message' is a chat message from the bot's owner
+    containing the response to delete.  The argument 'destination' is the JID
+    to send the response to.  If the last response for a given keyword is
+    deleted, so is the keyword to minimize cruft in the database. """
+    def delete_response(self, message, destination):
+        # response[0]: "delete response"
+        # response[1]: keyword
+        # response[2]: response
+        response = message.split(',')[1:]
+        old_keyword = response[0].strip()
+        old_response = response[1].strip()
+
+        # Keyword exists.
+        if old_keyword in self.responses:
+            # Response does not exist.
+            if old_response not in self.responses[old_keyword]:
+                self.send_message(mto=destination,
+                    mbody="That response does not exist.")
+            else:
+                # Response exists.
+                self.responses[old_keyword].remove(old_response)
+                self.send_message(mto=destination,
+                    mbody="Response deleted.")
+
+                # If the keyword is now empty, delete it from the table.
+                if not self.responses[old_keyword]:
+                    del self.responses[old_keyword]
+                    self.send_message(mto=destination,
+                        mbody="Keyword '%s' deleted because it had an empty response list." % old_keyword)
+        else:
+            # Keyword does not exist.
+            self.send_message(mto=destination,
+                mbody="That keyword does not exist.")
+        return
+
+    """ Helper method that allows the user to change a random response given
+    by the bot.  The argument 'message' is a chat message from the bot's owner
+    containing the response to change and what to change it to.  The argument
+    'destination' contains the JID to send the status response to. """
+    def change_response(self, message, destination):
+        # response[0]: "replace/change response"
+        # response[1]: keyword
+        # response[2]: old response
+        # response[3]: new response
+        response = message.split(',')[1:]
+        keyword = response[0].strip()
+        old_response = response[1].strip()
+        new_response = response[2].strip()
+
+        if keyword in self.responses:
+            # Response exists.
+            if old_response in self.responses[keyword]:
+                self.responses[keyword].append(new_response)
+                self.responses[keyword].remove(old_response)
+                self.send_message(mto=destination,
+                    mbody="Response for keyword %s updated." % keyword)
+            else:
+                # Response does not exist.
+                self.send_message(mto=destination,
+                    mbody="Response for keyword %s does not exist." % keyword)
+        else:
+            # Keyword does not exist.
+            self.send_message(mto=destination,
+                mbody="Keyword %s does not exist." % keyword)
+        return
 
     """ Event handler that reacts to presence stanzas in chatrooms issued
     when a user joins the chat.  The argument 'presence' is a presence
@@ -347,6 +392,33 @@ class ExocortexBot(ClientXMPP):
         if presence['muc']['nick'] != self.botname:
             self.send_message(mto=presence['from'].bare,
                 mbody=self.room_announcement, mtype='groupchat')
+
+    """ Helper method that cleanly shuts down the bot.  Broken out so that
+    it's not part of the parser's code, plus it makes it overloadable in the
+    future so that subclasses can extend it. The argument 'destination' is the
+    JID to send the shutdown messages to. """
+    def shutdown(self, destination):
+        # Alert the user that the bot is shutting down...
+        self.send_message(mto=destination,
+            mbody="%s is shutting down..." % self.botname)
+        self.send_message(mto=destination,
+            mbody="%s is shutting down..." % self.botname, mtype='groupchat')
+        self.disconnect(wait=True)
+
+        # Back up the response file.
+        old_responsefile = self.responsefile + ".bak"
+        if os.path.exists(old_responsefile):
+            os.remove(old_responsefile)
+        if os.path.exists(self.responsefile):
+            os.rename(self.responsefile, old_responsefile)
+
+        # Dump self.responses as a JSON document.
+        outfile = open(responsefile, 'w')
+        outfile.write(json.dumps(self.responses))
+        outfile.close()
+
+        # Bounce!
+        sys.exit(0)
 
 # Helper methods.
 """ This method prints out some basic system status information for the user,
