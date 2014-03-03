@@ -452,6 +452,25 @@ def process_status(botname):
     status = status + "The current system load is %s." % str(os.getloadavg())
     return status
 
+""" Figure out what to set the logging level to.  There isn't a
+straightforward way of doing this because Python uses constants that are
+actually integers under the hood, and I'd really like to be able to do
+something like loglevel = 'logging.' + loglevel.  I can't have a pony,
+either.  Takes a string, returns a Python loglevel. """
+def process_loglevel(loglevel):
+    if loglevel == 'critical':
+        return 50
+    if loglevel == 'error':
+        return 40
+    if loglevel == 'warning':
+        return 30
+    if loglevel == 'info':
+        return 20
+    if loglevel == 'debug':
+        return 10
+    if loglevel == 'notset':
+        return 0
+
 # Core code...
 if __name__ == '__main__':
     # If we're running in a Python environment earlier than v3.0, set the
@@ -475,8 +494,7 @@ if __name__ == '__main__':
     # Add a command line option that lets you override the config file's
     # loglevel.  This is for kicking a bot into debug mode without having to
     # edit the config file.
-    optionparser.add_option('-l', '--loglevel', dest='loglevel',
-        action='store_const', default=logging.INFO, const=logging.INFO,
+    optionparser.add_option('-l', '--loglevel', dest='loglevel', action='store',
         help='Specify the default logging level of the bot.  Choose from CRITICAL, ERROR, WARNING, INFO, DEBUG, NOTSET.  Defaults to INFO.')
 
     # Parse the command line args.
@@ -501,11 +519,19 @@ if __name__ == '__main__':
     imalive = config.get(botname, 'imalive')
     function = config.get(botname, 'function')
 
-    # Figure out how to configure the logger.
+    # Figure out how to configure the logger.  Start by reading the config
+    # file.
+    config_log = config.get(botname, 'loglevel').lower()
+    if config_log:
+        loglevel = process_loglevel(config_log)
+
+    # Then try the command line.
     if options.loglevel:
-        loglevel = options.loglevel
-    else:
-        loglevel = config.get(botname, 'loglevel')
+        loglevel = process_loglevel(options.loglevel.lower())
+
+    # Default to WARNING.
+    if not options.loglevel and not loglevel:
+        loglevel = logging.WARNING
 
     # Get the filename of the response file from the config file.
     responsefile = config.get(botname, 'responsefile')
@@ -513,7 +539,8 @@ if __name__ == '__main__':
     # Log into the XMPP server.  If it can't log in, try to register an account
     # with the server.  If it's a private server this shouldn't be a problem,
     # else print an error to stderr and ABEND.
-    logging.basicConfig(level=loglevel, format='%(levelname)-8s %(message)s')
+    logging.basicConfig(level=loglevel,
+        format='%(levelname)-8s %(message)s')
     bot = ExocortexBot(owner, botname, username, password, muc, muclogin,
         imalive, responsefile, function)
 
