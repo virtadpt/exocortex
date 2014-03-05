@@ -223,7 +223,7 @@ class ExocortexBot(ClientXMPP):
             # If the user tells the bot to terminate, do so.
             # "quit"
             if "shut down" in message or "shutdown" in message:
-                self.shutdown(msg['from'])
+                self._shutdown(msg['from'])
 
             # If nothing else, match all of the keywords/phrases in the
             # response file against the message body and pick one of the
@@ -284,7 +284,7 @@ class ExocortexBot(ClientXMPP):
                     self.send_message(mto=msg['from'].bare,
                         mbody="%s is shutting down..." % self.botname,
                         mtype='groupchat')
-                    self.shutdown(msg['from'])
+                    self._shutdown(msg['from'])
                     return
 
     """ Helper method that allows the user to add a random response given
@@ -396,7 +396,7 @@ class ExocortexBot(ClientXMPP):
     it's not part of the parser's code, plus it makes it overloadable in the
     future so that subclasses can extend it. The argument 'destination' is the
     JID to send the shutdown messages to. """
-    def shutdown(self, destination):
+    def _shutdown(self, destination):
         # Alert the user that the bot is shutting down...
         self.send_message(mto=destination,
             mbody="%s is shutting down..." % self.botname)
