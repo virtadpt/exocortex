@@ -412,7 +412,7 @@ class ExocortexBot(ClientXMPP):
             os.rename(self.responsefile, old_responsefile)
 
         # Dump self.responses as a JSON document.
-        outfile = open(responsefile, 'w')
+        outfile = open(self.responsefile, 'w')
         outfile.write(json.dumps(self.responses))
         outfile.close()
 
@@ -471,7 +471,5 @@ def process_loglevel(loglevel):
 # Core code...
 if __name__ == '__main__':
     # I really need to put unit tests here.
-    # No sense in keeping my "figure it out" code in __main_...
-
+    sys.exit(0)
 # Fin.
-
