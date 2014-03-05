@@ -101,6 +101,8 @@ if __name__ == '__main__':
     owner = config.get(botname, 'owner')
     username = config.get(botname, 'username')
     password = config.get(botname, 'password')
+    server = config.get(botname, 'server')
+    port = config.get(botname, 'port')
     muc = config.get(botname, 'muc')
     muclogin = config.get(botname, 'muclogin')
     imalive = config.get(botname, 'imalive')
