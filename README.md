@@ -10,3 +10,10 @@ when I have a little time and need to do something different.  Please don't
 treat this like the next new thing or the second coming of Alan Turing, I set
 this Github project up so that there would be a remote repository that I
 could fall back on.
+
+Written in Python2.
+
+Dependencies:
+* SleekXMPP
+* Tweepy?
+
