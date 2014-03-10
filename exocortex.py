@@ -421,7 +421,7 @@ class ExocortexBot(ClientXMPP):
 
     """ This method prints out some basic system status information for the
     user, should they ask for it. """
-    def _process_status(botname):
+    def _process_status(self, botname):
         procstat = ""
 
         # Pick information out of the OS that we'll need later.
@@ -429,7 +429,7 @@ class ExocortexBot(ClientXMPP):
         procfile = "/proc/" + str(current_pid) + "/status"
 
         # Start assembling the status report.
-        status = "Agent %s is fully operational on %s.\n" % (botname, time.ctime())
+        status = "%s is fully operational on %s.\n" % (botname, time.ctime())
         status = status + "I am operating from directory %s.\n" % os.getcwd()
         status = status + "My current process ID is %d.\n" % current_pid
 

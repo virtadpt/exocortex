@@ -3,41 +3,11 @@
 # vim: set expandtab tabstop=4 shiftwidth=4 :
 
 import ConfigParser
-from exocortex import ExocortexBot
+from twitterbot import TwitterBot
 import logging
 from optparse import OptionParser
 import os
 import sys
-
-""" This method prints out some basic system status information for the user,
-should they ask for it. """
-def process_status(botname):
-    procstat = ""
-
-    # Pick information out of the OS that we'll need later.
-    current_pid = os.getpid()
-    procfile = "/proc/" + str(current_pid) + "/status"
-
-    # Start assembling the status report.
-    status = "Agent %s is fully operational on %s.\n" % (botname, time.ctime())
-    status = status + "I am operating from directory %s.\n" % os.getcwd()
-    status = status + "My current process ID is %d.\n" % current_pid
-
-    # Pull the /proc/<pid>/status info into a string for analysis.
-    try:
-        s = open(procfile)
-        procstat = s.read()
-        s.close()
-    except:
-        status = status + "I was unable to read my process status info.\n"
-
-    # Determine how much RAM the bot is using.
-    memory_utilization = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    status = status + "I am currently using %d KB of RAM.\n" % memory_utilization
-
-    # Get the current system load.
-    status = status + "The current system load is %s." % str(os.getloadavg())
-    return status
 
 """ Figure out what to set the logging level to.  There isn't a
 straightforward way of doing this because Python uses constants that are
@@ -120,16 +90,29 @@ if __name__ == '__main__':
     if not options.loglevel and not loglevel:
         loglevel = logging.WARNING
 
+    # Configure the logger.
+    logging.basicConfig(level=loglevel,
+        format='%(levelname)-8s %(message)s')
+
     # Get the filename of the response file from the config file.
     responsefile = config.get(botname, 'responsefile')
 
-    # Log into the XMPP server.  If it can't log in, try to register an account
-    # with the server.  If it's a private server this shouldn't be a problem,
-    # else print an error to stderr and ABEND.
-    logging.basicConfig(level=loglevel,
-        format='%(levelname)-8s %(message)s')
-    bot = ExocortexBot(owner, botname, username, password, muc, muclogin,
-        imalive, responsefile, function)
+    # Determine which of the microblog classes to instantiate.
+    microblog_type = config.get(botname, 'type')
+    if microblog_type == 'twitter':
+        # Load the Twitter API keys from the config file.
+        twitter_consumer_key = config.get(botname, 'twitter_consumer_key')
+        twitter_consumer_secret = config.get(botname, 'twitter_consumer_secret')
+        access_token = config.get(botname, 'access_token')
+        access_token_secret = config.get(botname, 'access_token_secret')
+
+        # Instantiate a Twitter bot.
+        bot = TwitterBot(owner, botname, username, password, muc, muclogin,
+            imalive, responsefile, function, twitter_consumer_key,
+            twitter_consumer_secret, access_token, access_token_secret)
+    else:
+        print "No other kinds of microblog bots are defined yet."
+        sys.exit(0)
 
     # Connect to the XMPP server and start processing messages.
     if bot.connect():
