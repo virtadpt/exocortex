@@ -101,15 +101,15 @@ if __name__ == '__main__':
     microblog_type = config.get(botname, 'type')
     if microblog_type == 'twitter':
         # Load the Twitter API keys from the config file.
-        twitter_consumer_key = config.get(botname, 'twitter_consumer_key')
-        twitter_consumer_secret = config.get(botname, 'twitter_consumer_secret')
+        api_key = config.get(botname, 'api_key')
+        api_secret = config.get(botname, 'api_secret')
         access_token = config.get(botname, 'access_token')
         access_token_secret = config.get(botname, 'access_token_secret')
 
         # Instantiate a Twitter bot.
         bot = TwitterBot(owner, botname, username, password, muc, muclogin,
-            imalive, responsefile, function, twitter_consumer_key,
-            twitter_consumer_secret, access_token, access_token_secret)
+            imalive, responsefile, function, api_key, api_secret, access_token,
+            access_token_secret)
     else:
         print "No other kinds of microblog bots are defined yet."
         sys.exit(0)

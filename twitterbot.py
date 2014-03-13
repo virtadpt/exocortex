@@ -47,8 +47,8 @@ class TwitterBot(ExocortexBot):
     # Class attributes go here so they're easy to find.
     # Access keys that cryptographically authenticate requests from a
     # particular user to the Twitter API server.
-    twitter_consumer_key = ""
-    twitter_consumer_secret = ""
+    api_key = ""
+    api_secret = ""
 
     # OAuth access tokens that identify the application and user to the API
     # server.
@@ -84,13 +84,13 @@ class TwitterBot(ExocortexBot):
     code from ExocortexBot.__init__(), and in fact calls it to set up the
     basic stuff. """
     def __init__(self, owner, botname, jid, password, room, room_announcement,
-        imalive, responsefile, function, twitter_consumer_key,
-        twitter_consumer_secret, access_token, access_token_secret):
+        imalive, responsefile, function, api_key, api_secret, access_token,
+        access_token_secret):
 
         # Copy the TwitterBot-specific constructor args into class attributes
         # to make them easier to work with.
-        self.twitter_consumer_key = twitter_consumer_key
-        self.twitter_consumer_secret = twitter_consumer_secret
+        self.api_key = api_key
+        self.api_secret = api_secret
         self.access_token = access_token
         self.access_token_secret = access_token_secret
 
@@ -99,8 +99,7 @@ class TwitterBot(ExocortexBot):
             room_announcement, imalive, responsefile, function)
 
         # Authenticate with the Twitter API server.
-        self.auth = tweepy.OAuthHandler(self.twitter_consumer_key,
-            self.twitter_consumer_secret)
+        self.auth = tweepy.OAuthHandler(self.api_key, self.api_secret)
         self.auth.set_access_token(self.access_token, self.access_token_secret)
 
         # Create an API interface object.
@@ -140,11 +139,13 @@ class TwitterBot(ExocortexBot):
             # Class-specific help message
             if "help" in message:
                 self.send_message(mto=msg['from'],
-                    mbody="Hello.  My name is %s.  I am an instance of TwitterBot.  In addition to the usual ExocortexBot commands, I also support the following specialized commands:\n\n%s" % (self.botname, self.function, self.commands))
+                    mbody="Hello.  My name is %s.  %s  In addition to the usual ExocortexBot commands, I also support the following specialized commands:\n\n%s\n" % (self.botname, self.function, str(self.commands)))
                 self.send_message(mto=msg['from'],
-                    mbody="You can search Twitter for hashtags or arbitrary terms with the commands 'search hashtag #somehashtag' or 'search for somesearchterm'.")
+                    mbody="You can search Twitter for hashtags or arbitrary terms with the commands 'search hashtag #somehashtag' or 'search for somesearchterm'.\n")
                 self.send_message(mto=msg['from'],
-                    mbody="You can post something to Twitter with the commands 'post tweet <140 characters here>' or 'post to twitter <140 characters here>'.")
+                    mbody="You can post something to Twitter with the commands 'post tweet <140 characters here>' or 'post to twitter <140 characters here>'.\n")
+                self.send_message(mto=msg['from'],
+                    mbody="You can Search Twitter for trending topics around the world with the commands 'list trends <geographic location>' or 'find trends <geographic location>'.\n")
                 return
 
             # The user wants only the status of the Twitter connection.
@@ -212,21 +213,28 @@ class TwitterBot(ExocortexBot):
                 if posted_to_twitter == True:
                     self.send_message(mto=self.owner,
                         mbody="Status update successfully posted to Twitter.")
-                else:
-                    self.send_message(mto=self.owner,
-                        mbody="Error - unable to post message to Twitter.")
                 return
 
             # The user wants a list of trending topics on Twitter.
-            if 'find trends' in message:
+            if 'list trends' in message or 'find trends' in message:
                 # Reset the list of WOEID's.
                 self.woeid = []
 
                 # Strip the command string out of the message, leaving only
                 # the keywords we want to work with.
+                message = message.replace('list trends', '')
                 message = message.replace('find trends', '')
                 message = message.strip()
                 location = message.title()
+
+                # If the user asks for help or does not give a location,
+                # send a help message.
+                if message == 'help' or message == '':
+                    self.send_message(mto=self.owner,
+                        mbody="Twitter maps trending topics by geographic location, so this command must be used with the name of a Country or city.")
+                    return
+
+                # Inform the user that the search is about to begin.
                 self.send_message(mto=self.owner,
                     mbody="Searching trending topics on Twitter for %s..." %
                            location)
@@ -238,7 +246,7 @@ class TwitterBot(ExocortexBot):
                     trending_locations = self.api.trends_available()
                 except tweepy.error.TweepError as api_error:
                     self.send_message(mto=self.owner,
-                        mbody="Unable to contact Twitter API server.  Error message: %s.  Retrying..." % api_error.reason)
+                        mbody="Unable to contact Twitter API server.  Error message: %s." % api_error.reason)
                     return
 
                 # Search for the named location in that database.  There are
@@ -254,13 +262,18 @@ class TwitterBot(ExocortexBot):
                         if locale['woeid'] not in self.woeid:
                             self.woeid.append(locale['woeid'])
 
-                # Send a response back to the user.
+                # Send a response back to the user.  If there are no results,
+                # there's no sense in going through the rest of the method.
                 if not len(self.woeid):
-                    response = "There are currently no trending topics in the " + location + " at this time."
+                    response = "There are currently no trending topics in " + location + " at this time."
+                    self.send_message(mto=self.owner, mbody=response)
+                    return
+
+                # There are results, so treat them appropriately.
                 if len(self.woeid) == 1:
-                    response = "There is currently one trending topic in the " + location + " at this time."
+                    response = "There is one trending topic in " + location + " at this time."
                 if len(self.woeid) > 1:
-                    response = "There are currently " + str(len(self.woeid)) + " trending topics in the " + location + " at this time."
+                    response = "There are " + str(len(self.woeid)) + " trending topics in " + location + " at this time."
                 self.send_message(mto=self.owner, mbody=response)
 
                 # Query the API server for as many trending terms (Twitter
@@ -271,13 +284,16 @@ class TwitterBot(ExocortexBot):
                         trends = self.api.trends_place(id=locale)
                     except tweepy.error.TweepError as api_error:
                         self.send_message(mto=self.owner,
-                            mbody="Unable to contact Twitter API server.  Error message: %s.  Retrying..." % api_error.reason)
+                            mbody="Unable to contact Twitter API server.  Error message: %s." % api_error.reason)
                         return
-                    for trend in trends:
-                        print "\n\n"
-                        print ":: " + str(trend)
-                        print "\n\n"
-                        #response = response + trend['name'] + ": " + trend['url'] + "\n"
+
+                    # Walk through the list of trending locations and assemble
+                    # a list of terms and URLs that the user can click on to
+                    # look at the lists of tweets.
+                    for i in trends[0]['trends']:
+                        response = response + "Trending term: " + i['name']
+                        response = response + "URL: " + i['url'] + "\n"
+
                 # Send the response back to the user.
                 self.send_message(mto=self.owner, mbody=response)
                 return
@@ -323,7 +339,9 @@ class TwitterBot(ExocortexBot):
     def _post_to_twitter(self, message):
         try:
             self.api.update_status(message)
-        except tweepy.error.TweepError:
+        except tweepy.error.TweepError as api_error:
+            self.send_message(mto=self.owner,
+                mbody="Unable to post to Twitter.  Error message: %s." % api_error.reason)
             return False
         return True
 

@@ -1,0 +1,33 @@
+Trending topic information is pulled from Twitter sorted by geographic
+location.  That location can be a country, a state, or a city.  Tweepy will
+return everything in a single Python list that can be iterated through.  Each
+element of the list is a dict.  The important bits are:
+
+	locale: {
+		"country": <string>,
+		"name": <string>,
+		"woeid": <32-bit unsigned integer>,
+		}
+
+WOEIDs (https://en.wikipedia.org/wiki/WOEID) are 32-bit unsigned integers which
+identify geographic locations on the planet.  Twitter uses them to map trending
+topics to places.  We accumulate a list of WOEIDs based on the premise that if
+a WOEID is returned in the query, then there is at least one trending topic.
+Multiple WOEIDs mean multiple trending topics.
+
+The Twitter API server is queried with a WOEID, and the server returns a list
+of a single element which contains a JSON document.  It is most easily
+referenced as trends[0]['trends']
+
+The ['trends'] key contains a list which contains dicts with this schema:
+
+	{
+		"url": "<URL to a Twitter search for that trend>",
+		"query": "<search term>",
+		"name": "<search term>",
+		"promoted _content": None, # would this be True otherwise?
+		"events": None
+	}
+
+This is needlessly complicated.  Sheesh.
+

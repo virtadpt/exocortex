@@ -158,7 +158,8 @@ class ExocortexBot(ClientXMPP):
                 mbody="%s has successfully joined %s." %
                 (self.botname, self.room))
         else:
-            self.send_message(mto=self.owner,mbody="%s was unable to join %s.  Please check the error logs to see what happened." % (self.botname, self.room))
+            self.send_message(mto=self.owner,
+                mbody="%s was unable to join %s.  Please check the error logs to see what happened." % (self.botname, self.room))
 
     """ Event handler that fires whenever a message is sent to this JID. The
     argument 'msg' represents a message stanza.  This method is meant to be
