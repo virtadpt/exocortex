@@ -6,8 +6,6 @@
 # with Twitter's API and carries out the following functions:
 
 # TODO:
-# - Log into the Twitter API application server, download the user's tweets,
-#   and archive them so they can be searched.
 # - Get replies to the user's account.
 # - List trending topics.
 # - Pull top/all tweets on trending topics.
@@ -19,6 +17,9 @@
 #   keywords.
 # - Add support for the Statusnet API.
 #   Twitter-compatible API: http://status.net/wiki/Twitter-compatible_API
+# - Make it possible to do a file:send to the bot of the user's tweet archive
+#   and it'll load the tweets.csv file into a database server it's connected
+#   to.
 
 # By: The Doctor <drwho at virtadpt dot net>
 #     0x807B17C1 / 7960 1CDC 85C9 0B63 8D9F  DD89 3BD8 FF2B 807B 17C1
@@ -70,7 +71,8 @@ class TwitterBot(ExocortexBot):
     # to include TwitterBot-specific commands.
     commands = ExocortexBot.commands
     twitterbot_commands = ['twitter status', 'search hashtag/for',
-        'post tweet/post to twitter', 'list/find trends']
+        'post tweet/post to twitter', 'list/find trends', 'get archive/tweets',
+        'get my tweets', 'query user', 'query user activity/timeline']
     commands = commands + twitterbot_commands
 
     # API error catcher.
@@ -146,6 +148,10 @@ class TwitterBot(ExocortexBot):
                     mbody="You can post something to Twitter with the commands 'post tweet <140 characters here>' or 'post to twitter <140 characters here>'.\n")
                 self.send_message(mto=msg['from'],
                     mbody="You can Search Twitter for trending topics around the world with the commands 'list trends <geographic location>' or 'find trends <geographic location>'.\n")
+                self.send_message(mto=msg['from'],
+                    mbody="You can query a Twitter user's profile with the command 'query user <Twitter username>'.\n")
+                self.send_message(mto=msg['from'],
+                    mbody="You can query a Twitter user's recent activity with the command 'query user activity <Twitter username> <number of tweets (default: 20)>' or 'query user timeline <username> <number of tweets>' .\n")
                 return
 
             # The user wants only the status of the Twitter connection.
@@ -180,15 +186,13 @@ class TwitterBot(ExocortexBot):
                     response = str(number_of_results) + " tweets were found."
                     self.send_message(mto=self.owner, mbody=response)
 
-                # Build response to send back to user.
+                # Build response and send back to user.
                 response = ""
                 for tweet in hashtag_results:
                     response_line = "@" + tweet.user.name + ": " + tweet.text + "\n" + "Retweeted " + str(tweet.retweet_count) + " times.\n\n"
                     response = response + response_line
-                    print "\n" + response_line
-
-                # Send search results to user via private chat.
                 self.send_message(mto=self.owner, mbody=response)
+                return
 
             # The user wants to update their Twitter timeline.
             if 'post tweet' in message or 'post to twitter' in message:
@@ -292,10 +296,54 @@ class TwitterBot(ExocortexBot):
                     # look at the lists of tweets.
                     for i in trends[0]['trends']:
                         response = response + "Trending term: " + i['name']
-                        response = response + "URL: " + i['url'] + "\n"
+                        response = response + "  URL: " + i['url'] + "\n"
 
                 # Send the response back to the user.
                 self.send_message(mto=self.owner, mbody=response)
+                return
+
+            # The user asks to have their content archive downloaded from
+            # Twitter.  The bot can't do that, but it can tell you how to do
+            # that.
+            if "get archive" in message or "get tweets" in message or "get my tweets" in message:
+                self._get_my_tweets()
+
+            # Query a user's recent timeline activity.
+            if "query user activity" in message or 'query user timeline' in message:
+                # Extract the user's Twitter username and number of tweets to
+                # pull.
+                message = message.replace('query user activity', '')
+                message = message.replace('query user timeline', '')
+                queried_user = message.split(' ')[1]
+                queried_user = queried_user.strip()
+
+                # This is a little hacky, but I can't think of a better way
+                # to take into account situations where the user doesn't
+                # supply the number of tweets to pull.
+                number_of_tweets = ""
+                try:
+                    number_of_tweets = message.split(' ')[2]
+                    number_of_tweets = number_of_tweets.strip()
+                    number_of_tweets = int(number_of_tweets)
+                except:
+                    number_of_tweets = 20
+
+                # Sanity check the number of tweets the user is asking for.
+                if number_of_tweets < 0:
+                    self.send_message(mto=self.owner, mbody="ERROR: You cannot request a negative number of tweets.  That doesn't make any sense.")
+                    return
+                if number_of_tweets > 3200:
+                    self.send_message(mto=self.owner, mbody="ERROR: The Twitter API server limits the number of tweets you can request from someone's timeline to 3200.")
+                    return
+                self._query_user_activity(queried_user, number_of_tweets)
+                return
+
+            # Query a user's profile.
+            if "query user" in message:
+                # Extract the Twitter username
+                queried_user = message.replace('query user', '')
+                queried_user = queried_user.strip()
+                self._query_user(queried_user)
                 return
 
             # Class-specific commands out of the way, call the message parser of
@@ -344,6 +392,68 @@ class TwitterBot(ExocortexBot):
                 mbody="Unable to post to Twitter.  Error message: %s." % api_error.reason)
             return False
         return True
+
+    """ Twitter doesn't actually make it possible to download your tweets via
+    their API, but they will let you download a package of them to use
+    offline.  Inform the user about this if they ask. """
+    def _get_my_tweets(self):
+        response = "The Twitter API server does not let you download your Twitter timeline.  Twitter will, however, let you download the contents of your timeline.  They'll generate a .zip file for you to download containing, among other things, a file called 'tweets.csv' which you can import into a database.\n\nClick on this link to request your tweet archive: https://twitter.com/settings/account"
+        self.send_message(mto=self.owner, mbody=response)
+
+    """ Given a Twitter username, pull their most recent timeline activity.
+    Defaults to the 20 most recent tweets, but the API server will let you
+    request up to 3200 tweets. """
+    def _query_user_activity(self, user, tweet_count=20):
+        queried_user = user.replace('@', '')
+        user_timeline = ""
+
+        # Request a user timeline object from the API server.
+        try:
+            user_timeline = self.api.user_timeline(screen_name=queried_user,
+                include_rts=True, count=tweet_count)
+        except tweepy.error.TweepError as api_error:
+            self.send_message(mto=self.owner,
+                mbody="Unable to access user's timeline.  Error message: %s." % api_error.reason)
+            return
+        self.send_message(mto=self.owner,
+            mbody="Here are the last %i tweets @%s has posted:\n" % (tweet_count, queried_user))
+
+        # Walk through the user's most recent tweets, and for each one
+        # assemble a private chat message to the bot's owner.
+        for tweet in user_timeline:
+            message = str(tweet.created_at) + ": " + tweet.text
+            if tweet.coordinates:
+                message = message + "Coordinates: " + str(tweet.coordinates)
+            if tweet.entities['urls']:
+                message = message + "\n" + tweet.entities['urls'][0]['expanded_url']
+            message = message + "\n"
+            self.send_message(mto=self.owner, mbody=message)
+        return
+
+    """ Given a Twitter username, pull their profile.  Send it back to the
+    bot's owner in a private chat. """
+    def _query_user(self, user):
+        # For consistency, remove a leading @ symbol if it exists.
+        queried_user = user.replace('@', '')
+        queried_user_profile = ""
+
+        # Request a user object from the API server.
+        try:
+            queried_user_profile = self.api.get_user(queried_user)
+        except tweepy.error.TweepError as api_error:
+            self.send_message(mto=self.owner,
+                mbody="Unable to pull user profile.  Error message: %s." % api_error.reason)
+            return
+
+        # Build a profile and send it back to the user.
+        profile = "Username: @" + queried_user_profile.screen_name + "\n"
+        profile = profile + "Name: " + queried_user_profile.name + "\n"
+        profile = profile + "Description: " + queried_user_profile.description + "\n"
+        profile = profile + "Twitter Internal ID: " + str(queried_user_profile.id) + "\n"
+        profile = profile + "Number of followers: " + str(queried_user_profile.followers_count) + "\n"
+        profile = profile + "Total number of tweets: " + str(queried_user_profile.statuses_count)
+        self.send_message(mto=self.owner, mbody=profile)
+        return
 
 # Core code...
 if __name__ == '__main__':
