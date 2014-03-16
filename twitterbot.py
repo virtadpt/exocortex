@@ -7,7 +7,6 @@
 
 # TODO:
 # - Get replies to the user's account.
-# - List trending topics.
 # - Pull top/all tweets on trending topics.
 # - Monitor trending topics and alert if specific search terms show up in the
 #   list.
@@ -72,7 +71,7 @@ class TwitterBot(ExocortexBot):
     commands = ExocortexBot.commands
     twitterbot_commands = ['twitter status', 'search hashtag/for',
         'post tweet/post to twitter', 'list/find trends', 'get archive/tweets',
-        'get my tweets', 'query user', 'query user activity/timeline']
+        'get my tweets', 'query user', 'query user activity/timeline' ]
     commands = commands + twitterbot_commands
 
     # API error catcher.
@@ -147,7 +146,9 @@ class TwitterBot(ExocortexBot):
                 self.send_message(mto=msg['from'],
                     mbody="You can post something to Twitter with the commands 'post tweet <140 characters here>' or 'post to twitter <140 characters here>'.\n")
                 self.send_message(mto=msg['from'],
-                    mbody="You can Search Twitter for trending topics around the world with the commands 'list trends <geographic location>' or 'find trends <geographic location>'.\n")
+                    mbody="You can search Twitter for trending topics around the world with the commands 'list trends <geographic location>' or 'find trends <geographic location>'.\n")
+                self.send_message(mto=msg['from'],
+                    mbody="You can follow trends on Twitter with the command 'follow trend <keyword>'.\n")
                 self.send_message(mto=msg['from'],
                     mbody="You can query a Twitter user's profile with the command 'query user <Twitter username>'.\n")
                 self.send_message(mto=msg['from'],
@@ -314,16 +315,14 @@ class TwitterBot(ExocortexBot):
                 # pull.
                 message = message.replace('query user activity', '')
                 message = message.replace('query user timeline', '')
-                queried_user = message.split(' ')[1]
-                queried_user = queried_user.strip()
+                queried_user = message.split(' ')[1].strip()
 
                 # This is a little hacky, but I can't think of a better way
                 # to take into account situations where the user doesn't
                 # supply the number of tweets to pull.
                 number_of_tweets = ""
                 try:
-                    number_of_tweets = message.split(' ')[2]
-                    number_of_tweets = number_of_tweets.strip()
+                    number_of_tweets = message.split()[2].strip()
                     number_of_tweets = int(number_of_tweets)
                 except:
                     number_of_tweets = 20
@@ -341,8 +340,7 @@ class TwitterBot(ExocortexBot):
             # Query a user's profile.
             if "query user" in message:
                 # Extract the Twitter username
-                queried_user = message.replace('query user', '')
-                queried_user = queried_user.strip()
+                queried_user = message.replace('query user', '').strip()
                 self._query_user(queried_user)
                 return
 
