@@ -1,0 +1,21 @@
+This is what Twitter streams look like when Tweepy pulls them.
+
+For each tweet, use json.loads() to pull it into a hash table.
+
+Here are some of the more useful keys in that hash table:
+    * text - Full text of the tweet as a Unicode string.
+    * coordinates - Map coordinates the tweet was posted from, if any.
+    * user - Hash table containing who posted the tweet and their profile.
+    * geo - Whether or not the account of origin has geotagging turned on.
+    * created_at - Datestamp the tweet was posted.  Time is UTC.
+
+tweet['user'] has the following interesting keys:
+    * id_str - Account's internal ID as a string.
+    * description - User's description.
+    * location - User's stated location.
+    * geo_enabled - Whether or not geotagging is enabled.
+    * name - User's stated name.
+    * screen_name - User's Twitter handle.
+    * url - User's homepage URL, if given.
+    * time_zone - User's time zone.
+
