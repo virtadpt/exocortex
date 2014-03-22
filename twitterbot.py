@@ -7,7 +7,6 @@
 
 # TODO:
 # - Get replies to the user's account.
-# - Pull top/all tweets on trending topics.
 # - Monitor trending topics and alert if specific search terms show up in the
 #   list.
 # - Monitor the activity of a particular user.  Archive the user's tweets for
@@ -19,6 +18,8 @@
 # - Make it possible to do a file:send to the bot of the user's tweet archive
 #   and it'll load the tweets.csv file into a database server it's connected
 #   to.
+# - Decide whether or not to serialize the list of currently active search
+#   terms to disk on shutdown or not.
 
 # By: The Doctor <drwho at virtadpt dot net>
 #     0x807B17C1 / 7960 1CDC 85C9 0B63 8D9F  DD89 3BD8 FF2B 807B 17C1
@@ -86,7 +87,7 @@ class TwitterBot(ExocortexBot):
         'post tweet/post to twitter', 'list/find trends', 'get archive/tweets',
         'get my tweets', 'query user', 'query user activity/timeline',
         'monitor twitter for', 'list search terms',
-        'stop monitoring/listening for/delete search term', 'stop monitoring',
+        'stop listening for/delete search term', 'stop monitoring',
         'delete search terms']
     commands = commands + twitterbot_commands
 
@@ -96,6 +97,11 @@ class TwitterBot(ExocortexBot):
     # List of Twitter WOEID's that have trending topics.  We need to cache
     # this value for later commands.
     woeid = []
+
+    # It's easier to manipulate the threads if their pointers are outside
+    # of the context of the conditionals they're created in.
+    twitter_monitor = ""
+    queue_processor = ""
 
     """ Default constructor for the TwitterBot class.  Inherits much of its
     code from ExocortexBot.__init__(), and in fact calls it to set up the
@@ -138,7 +144,6 @@ class TwitterBot(ExocortexBot):
     def message(self, msg):
         # Potential message types: normal, chat, error, headline, groupchat
         if msg['type'] in ('chat', 'normal'):
-
             # Extract whom the message came from.
             msg_from = str(msg.getFrom())
             msg_from = string.split(msg_from, '/')[0]
@@ -174,7 +179,7 @@ class TwitterBot(ExocortexBot):
                 self.send_message(mto=msg['from'],
                     mbody="You can list the currently active search terms with the command 'list search terms'.\n")
                 self.send_message(mto=msg['from'],
-                    mbody="Search terms can be dropped with the commands 'stop monitoring for <term>', 'stop listening for <term>', or 'delete search term <term>'.\n")
+                    mbody="Search terms can be dropped with the commands 'stop listening for <term>', or 'delete search term <term>'.\n")
                 self.send_message(mto=msg['from'],
                     mbody="I can be told to stop monitoring with the commands 'stop monitoring' or 'delete search terms'.\n")
                 return
@@ -382,30 +387,26 @@ class TwitterBot(ExocortexBot):
                 # Determine whether or not the threads are running based upon
                 # the size of the list of search terms.
                 threads_running = len(self.monitoring_terms)
-                self.monitoring_terms.append(term)
+                if term not in self.monitoring_terms:
+                    self.monitoring_terms.append(term)
                 self.send_message(mto=self.owner,
                     mbody="Added search term '%s' to the list of things to monitor Twitter for." % term)
 
-                # If the threads were not running, initiate them.
-                #if not threads_running:
-                #    print "Spawning Twitter listening thread."
-                #    twitter_stream = Stream(self.auth, TwitterStreamListener())
-                #    twitter_monitor = Process(target=twitter_stream.filter,
-                #        kwargs={'track': 'monitoring_terms'})
-                #    print "Starting Twitter listening thread " + twitter_monitor.name + "."
-                #    twitter_monitor.start()
+                if not threads_running:
+                    # Instantiate a Twitter stream listener thread.
+                    listener = TwitterStreamListener(self.monitored_tweets,
+                        self.monitoring_terms, self)
+                    twitter_stream = Stream(self.auth, listener)
+                    self.twitter_monitor = Process(target=twitter_stream.filter,
+                        kwargs={'track': 'monitoring_terms'})
+                    self.twitter_monitor.start()
 
-                #    print "Spawning Twitter queue processing thread."
-                #    queue_processor = Process(target=tweet_queue_processor,
-                #        args=(self.monitored_tweets, ))
-                #    print "Starting queue processing thread " + queue_processor.name + "."
-                #    queue_processor.start()
-                #    self.send_message(mto=self.owner,
-                #        mbody="Now monitoring Twitter's live stream for your search terms.  I'll send them to you as they arrive.")
-
-                    # Here's where we catch the threads when they're done.
-                #    twitter_monitor.join()
-                #    queue_processor.join()
+                    # Instantiate a queue processor thread to process the
+                    # captured tweets and message the bot's owner.
+                    self.queue_processor = Process(target=listener.tweet_queue_processor, args=(self.monitored_tweets, ))
+                    self.queue_processor.start()
+                    self.send_message(mto=self.owner,
+                        mbody="Now monitoring Twitter's live stream for your search terms.  I'll send them to you as they arrive.")
                 return
 
             # The user asks for the list of active search terms.
@@ -420,23 +421,18 @@ class TwitterBot(ExocortexBot):
             # Clear the list of search terms.
             if "stop monitoring" in message or "delete search terms" in message:
                 self.monitoring_terms = []
-                #twitter_monitor.join()
-                #queue_processor.join()
-                self.send_message(mto=self.owner,
-                    mbody="Active search terms deleted.")
+                self.monitored_tweets.put(None)
 
-                # Push a termination sentinel into the queue to terminate the
-                # running threads.
-                if not len(self.monitoring_terms):
-                    self.monitored_tweets.put(None)
-                    self.send_message(mto=self.owner,
-                         mbody="The list of terms to monitor for is empty.")
+                # Catch the threads we spawned.
+                self.twitter_monitor.join()
+                self.queue_processor.join()
+                self.send_message(mto=self.owner,
+                        mbody="Active search terms deleted.")
                 return
 
             # Delete a search term from the list.
-            if "stop monitoring for" in message or "stop listening for" in message or "delete search term" in message:
+            if "stop listening for" in message or "delete search term" in message:
                 # Clean out the possible commands to leave the arguments.
-                term = message.replace('stop monitoring for', '').strip()
                 term = message.replace('stop listening for', '').strip()
                 term = message.replace('delete search term', '').strip()
                 if not term:
@@ -453,6 +449,8 @@ class TwitterBot(ExocortexBot):
                     self.monitored_tweets.put(None)
                     self.send_message(mto=self.owner,
                          mbody="The list of terms to monitor for is empty.")
+                    self.twitter_monitor.join()
+                    self.queue_processor.join()
                 return
 
             # Class-specific commands out of the way, call the message parser of

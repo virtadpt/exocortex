@@ -19,7 +19,9 @@
 # Pre-requisite modules have their own licenses.
 
 # Load modules.
+import json
 import sys
+from multiprocessing import JoinableQueue
 from tweepy import StreamListener
 
 # Classes.
@@ -28,58 +30,67 @@ the data.  Namely, it monitors the stream for certain search terms, and every
 time it finds one it pushes it into a multiprocessing queue for later
 analysis. """
 class TwitterStreamListener(StreamListener):
+    # Pointers to objects that this class uses which are part of other classes.
+    queue = ""
+    terms = []
+    communications_channel = ""
+
+    """ Set up a pointer to a queue of tweets higher up in the hierarchy. """
+    def __init__(self, queue, terms, communications_channel):
+        # Call the constructor for the superclass.
+        StreamListener.__init__(self)
+
+        # Set up the pointer to the queue of tweets.
+        self.queue = queue
+        self.terms = terms
+        self.communications_channel = communications_channel
+
     """ Every time a tweet matching one of the search terms is detected, push
     it into the queue. """
     def on_data(self, data):
         # Every time a tweet that matches one of the search terms comes up,
         # add it to the queue.
-        tweets.put(data)
+        self.queue.put(data)
 
         # As long as there are entries in list of terms to monitor, return
         # True to keep the thread running.
-        if len(monitoring_terms):
+        if len(self.terms):
             return True
         else:
             # If the list of terms to search for is empty, push a sentinel value
             # of None into the queue to stop everything.
-            tweets.put(None)
+            self.queue.put(None)
             return False
 
-    """ In the event of an error, print a status message to the console. """
+    """ In the event of an error, send a status message to the user. """
     def on_error(self, status):
-        print status
+        print "\n\nError: " + str(status) + "\n\n"
+        self.communications_channel.send_message(
+            mto=self.communications_channel.owner,
+            mbody="An error has occurred while communicating with the Twitter API server: %s" % str(status))
 
-""" This is a helper function which runs in a separate thread.  It processes
-the queue of matching tweets by picking out useful information and sending it
-to the bot's owner. """
-def tweet_queue_processor(queue):
-    while True:
-        print "Picking a tweet out of the queue."
-        tweet = queue.get()
+    """ This is a helper function which runs in a separate thread.  It
+    processes the queue of matching tweets by picking out useful information
+    and sending it to the bot's owner. """
+    def tweet_queue_processor(self, queue):
+        while True:
+            # Get an element out of the queue.
+            tweet = queue.get()
 
-        # Detect 'None' as a termination sentinel in the queue.
-        if tweet is None:
-            print "Queue is now empty."
-            break
-        else:
-            # Process the queue entry.
-            print "Queue now contains " + str(queue.qsize()) + " items."
-            tweet = json.loads(tweet)
-            #print tweet['text']
-            user_profile = tweet['user']
-            print user_profile['id_str']
-            print user_profile['description']
-            print user_profile['location']
-            print user_profile['geo_enabled']
-            print user_profile['name']
-            print user_profile['screen_name']
-            print user_profile['url']
-            print user_profile['time_zone']
-            #print tweet['created_at']
-            print "\n"
-
-    # All done.  Bail.
-    queue.task_done()
+            # Detect 'None' as a termination sentinel in the queue.
+            if tweet is None:
+                break
+            else:
+                # Process the queue entry.
+                tweet = json.loads(tweet)
+                if 'text' in tweet:
+                    print "\n\n" + tweet['text'] + "\n\n"
+                    self.communications_channel.send_message(
+                        mto=self.communications_channel.owner,
+                        mbody=tweet['text'])
+        # All done.  Bail.
+        queue.task_done()
+        print "\nTerminating queue processor.\n"
 
 # Core code...
 if __name__ == '__main__':
