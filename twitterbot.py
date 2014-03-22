@@ -29,11 +29,15 @@
 # Load modules.
 import datetime
 from exocortex import ExocortexBot
+import json
+from multiprocessing import Process, JoinableQueue
 import os
 import string
 import sys
 import tweepy
-from tweepy import StreamListener
+from tweepy import Stream
+import twitterstreamlistener
+from twitterstreamlistener import TwitterStreamListener
 
 # Classes.
 """ This class implements an interface to the Twitter API which allows the bot
@@ -65,13 +69,25 @@ class TwitterBot(ExocortexBot):
     # around with this API" test script I wrote.
     user = ""
 
+    # A list of terms to monitor Twitter's global activity for via it's
+    # streaming interface.  This list can be updated in realtime, and the
+    # monitoring thread should notice the changes and react accordingly.
+    monitoring_terms = []
+
+    # Tweets picked out of the stream get put into a multiprocessing queue to
+    # be analyzed by another thread.
+    monitored_tweets = JoinableQueue()
+
     # A list of commands defined on bots descended from this particular class.
     # This list is inherited from the ExocortexBot base class, but is extended
     # to include TwitterBot-specific commands.
     commands = ExocortexBot.commands
     twitterbot_commands = ['twitter status', 'search hashtag/for',
         'post tweet/post to twitter', 'list/find trends', 'get archive/tweets',
-        'get my tweets', 'query user', 'query user activity/timeline' ]
+        'get my tweets', 'query user', 'query user activity/timeline',
+        'monitor twitter for', 'list search terms',
+        'stop monitoring/listening for/delete search term', 'stop monitoring',
+        'delete search terms']
     commands = commands + twitterbot_commands
 
     # API error catcher.
@@ -153,6 +169,14 @@ class TwitterBot(ExocortexBot):
                     mbody="You can query a Twitter user's profile with the command 'query user <Twitter username>'.\n")
                 self.send_message(mto=msg['from'],
                     mbody="You can query a Twitter user's recent activity with the command 'query user activity <Twitter username> <number of tweets (default: 20)>' or 'query user timeline <username> <number of tweets>' .\n")
+                self.send_message(mto=msg['from'],
+                    mbody="You can set up a near-realtime search of arbitrary terms and hashtags on Twitter with the command 'monitor twitter for <search term>'.  Multiple search terms can be monitored for simultaneously.\n")
+                self.send_message(mto=msg['from'],
+                    mbody="You can list the currently active search terms with the command 'list search terms'.\n")
+                self.send_message(mto=msg['from'],
+                    mbody="Search terms can be dropped with the commands 'stop monitoring for <term>', 'stop listening for <term>', or 'delete search term <term>'.\n")
+                self.send_message(mto=msg['from'],
+                    mbody="I can be told to stop monitoring with the commands 'stop monitoring' or 'delete search terms'.\n")
                 return
 
             # The user wants only the status of the Twitter connection.
@@ -342,6 +366,93 @@ class TwitterBot(ExocortexBot):
                 # Extract the Twitter username
                 queried_user = message.replace('query user', '').strip()
                 self._query_user(queried_user)
+                return
+
+            # The user asks the bot to monitor Twitter for a particular search
+            # term.  The search term goes into the list of terms.  If the size
+            # of the list is suddenly non-zero, spawn the listener and
+            # processor threads to make it happen.
+            if "monitor twitter for" in message:
+                term = message.replace('monitor twitter for', '').strip()
+                if not term:
+                    self.send_message(mto=self.owner,
+                        mbody="You need to specify a search term.")
+                    return
+
+                # Determine whether or not the threads are running based upon
+                # the size of the list of search terms.
+                threads_running = len(self.monitoring_terms)
+                self.monitoring_terms.append(term)
+                self.send_message(mto=self.owner,
+                    mbody="Added search term '%s' to the list of things to monitor Twitter for." % term)
+
+                # If the threads were not running, initiate them.
+                #if not threads_running:
+                #    print "Spawning Twitter listening thread."
+                #    twitter_stream = Stream(self.auth, TwitterStreamListener())
+                #    twitter_monitor = Process(target=twitter_stream.filter,
+                #        kwargs={'track': 'monitoring_terms'})
+                #    print "Starting Twitter listening thread " + twitter_monitor.name + "."
+                #    twitter_monitor.start()
+
+                #    print "Spawning Twitter queue processing thread."
+                #    queue_processor = Process(target=tweet_queue_processor,
+                #        args=(self.monitored_tweets, ))
+                #    print "Starting queue processing thread " + queue_processor.name + "."
+                #    queue_processor.start()
+                #    self.send_message(mto=self.owner,
+                #        mbody="Now monitoring Twitter's live stream for your search terms.  I'll send them to you as they arrive.")
+
+                    # Here's where we catch the threads when they're done.
+                #    twitter_monitor.join()
+                #    queue_processor.join()
+                return
+
+            # The user asks for the list of active search terms.
+            if "list search terms" in message:
+                if len(self.monitoring_terms):
+                    response = "Currently active search terms: " + str(self.monitoring_terms)
+                else:
+                    response = "There are no search terms set at this time."
+                self.send_message(mto=self.owner, mbody=response)
+                return
+
+            # Clear the list of search terms.
+            if "stop monitoring" in message or "delete search terms" in message:
+                self.monitoring_terms = []
+                #twitter_monitor.join()
+                #queue_processor.join()
+                self.send_message(mto=self.owner,
+                    mbody="Active search terms deleted.")
+
+                # Push a termination sentinel into the queue to terminate the
+                # running threads.
+                if not len(self.monitoring_terms):
+                    self.monitored_tweets.put(None)
+                    self.send_message(mto=self.owner,
+                         mbody="The list of terms to monitor for is empty.")
+                return
+
+            # Delete a search term from the list.
+            if "stop monitoring for" in message or "stop listening for" in message or "delete search term" in message:
+                # Clean out the possible commands to leave the arguments.
+                term = message.replace('stop monitoring for', '').strip()
+                term = message.replace('stop listening for', '').strip()
+                term = message.replace('delete search term', '').strip()
+                if not term:
+                    self.send_message(mto=self.owner,
+                        mbody="You need to specify a search term.")
+                    return
+                self.monitoring_terms.remove(term)
+                self.send_message(mto=self.owner,
+                    mbody="Search term %s removed." % term)
+
+                # If the size of the list of search terms is now zero, push a
+                # termination sentinel into the queue.
+                if not len(self.monitoring_terms):
+                    self.monitored_tweets.put(None)
+                    self.send_message(mto=self.owner,
+                         mbody="The list of terms to monitor for is empty.")
                 return
 
             # Class-specific commands out of the way, call the message parser of
