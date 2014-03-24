@@ -116,7 +116,7 @@ if __name__ == '__main__':
 
     # Connect to the XMPP server and start processing messages.
     if bot.connect():
-        bot.process(block=False)
+        bot.process(block=True)
     else:
         print "ERROR: Unable to connect to XMPP server."
         sys.exit(1)

@@ -19,9 +19,8 @@
 # Pre-requisite modules have their own licenses.
 
 # Load modules.
-import json
+import Queue
 import sys
-from multiprocessing import JoinableQueue
 from tweepy import StreamListener
 
 # Classes.
@@ -68,29 +67,6 @@ class TwitterStreamListener(StreamListener):
         self.communications_channel.send_message(
             mto=self.communications_channel.owner,
             mbody="An error has occurred while communicating with the Twitter API server: %s" % str(status))
-
-    """ This is a helper function which runs in a separate thread.  It
-    processes the queue of matching tweets by picking out useful information
-    and sending it to the bot's owner. """
-    def tweet_queue_processor(self, queue):
-        while True:
-            # Get an element out of the queue.
-            tweet = queue.get()
-
-            # Detect 'None' as a termination sentinel in the queue.
-            if tweet is None:
-                break
-            else:
-                # Process the queue entry.
-                tweet = json.loads(tweet)
-                if 'text' in tweet:
-                    print "\n\n" + tweet['text'] + "\n\n"
-                    self.communications_channel.send_message(
-                        mto=self.communications_channel.owner,
-                        mbody=tweet['text'])
-        # All done.  Bail.
-        queue.task_done()
-        print "\nTerminating queue processor.\n"
 
 # Core code...
 if __name__ == '__main__':
