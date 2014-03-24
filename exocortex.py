@@ -126,11 +126,12 @@ class ExocortexBot(ClientXMPP):
 
         # Set appropriate event handlers for this session.  Please note that a
         # single event many be processed by multiple matching event handlers.
-        self.add_event_handler("session_start", self.start)
-        self.add_event_handler("message", self.message)
-        self.add_event_handler("groupchat_message", self.groupchat)
+        self.add_event_handler("session_start", self.start, threaded=True)
+        self.add_event_handler("message", self.message, threaded=True)
+        self.add_event_handler("groupchat_message", self.groupchat,
+            threaded=True)
         self.add_event_handler("muc::%s::got_online" % self.room,
-            self.muc_online)
+            self.muc_online, threaded=True)
 
         # Register plugins to support XEPs.
         self.register_plugin('xep_0030') # Service discovery

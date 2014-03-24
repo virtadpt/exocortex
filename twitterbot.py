@@ -389,7 +389,11 @@ class TwitterBot(ExocortexBot):
 
                 # Determine whether or not the threads are running based upon
                 # the size of the list of search terms.
-                threads_running = len(self.monitoring_terms)
+                threads_running = threading.activeCount()
+                print "\n\nNumber of threads running: " + str(threads_running) + "\n\n"
+
+                # See if the new search term needs to be added to the list of
+                # things to watch for.
                 if term not in self.monitoring_terms:
                     self.monitoring_terms.append(term)
                     self.send_message(mto=self.owner,
@@ -399,8 +403,11 @@ class TwitterBot(ExocortexBot):
                         mbody="I'm already monitoring Twitter for the search term '%s'." % term)
                     return
 
-                if not threads_running:
+                if not self.twitter_monitor and not self.queue_processor:
+                    print "\n\nNo Twitter monitoring threads running.\n\n"
+
                     # Instantiate a Twitter stream listener thread.
+                    print "\n\nInstantiating Twitter monitoring thread.\n\n"
                     listener = TwitterStreamListener(self.monitored_tweets,
                         self.monitoring_terms, self)
                     twitter_stream = Stream(self.auth, listener)
@@ -411,14 +418,26 @@ class TwitterBot(ExocortexBot):
                     self.twitter_monitor.daemon = True
                     self.twitter_monitor.start()
 
+                    if self.twitter_monitor:
+                        print "\n\nStarted thread self.twitter_monitor.\n\n"
+                    else:
+                        print "\n\nUnable to start thread self.twitter_monitor.\n\n"
+
                     # Instantiate a queue processor thread to process the
                     # captured tweets and message the bot's owner.
+                    print "\n\nInstantiating tweet queue monitoring thread.\n\n"
                     self.queue_processor = threading.Thread(
                         target=self._tweet_queue_processor,
                         name="TwitterBotQueueProcessor",
                         args=(self.monitored_tweets, ))
                     self.queue_processor.daemon = True
                     self.queue_processor.start()
+
+                    if self.queue_processor:
+                        print "\n\nStarted thread self.queue_processor.\n\n"
+                    else:
+                        print "\n\nUnable to start thread self.queue_processor.\n\n"
+
                     self.send_message(mto=self.owner,
                         mbody="Now monitoring Twitter's live stream for your search terms.  I'll send them to you as they arrive.")
                 return
@@ -434,14 +453,24 @@ class TwitterBot(ExocortexBot):
 
             # Clear the list of search terms.
             if "stop monitoring" in message or "delete search terms" in message:
+                # Sanity check: If the bot isn't listening for anything in
+                # particular at the moment don't do anything.
+                if not len(self.monitoring_terms):
+                    self.send_message(mto=self.owner,
+                        mbody="There are no active search terms.")
+                    return
+
+                # Establish the termination sentinels.
                 self.monitoring_terms = []
                 self.monitored_tweets.put(None)
 
                 # Catch the threads we spawned.
-                self.twitter_monitor.join()
-                self.queue_processor.join()
+                self.twitter_monitor.join(10.0)
+                self.queue_processor.join(10.0)
+                self.twitter_monitor = None
+                self.queue_processor = None
                 self.send_message(mto=self.owner,
-                        mbody="Active search terms deleted.")
+                    mbody="Active search terms deleted.")
                 return
 
             # Delete a search term from the list.
@@ -469,6 +498,8 @@ class TwitterBot(ExocortexBot):
                          mbody="The list of terms to monitor for is empty.")
                     self.twitter_monitor.join()
                     self.queue_processor.join()
+                    self.twitter_monitor = None
+                    self.queue_processor = None
                 return
 
             # Class-specific commands out of the way, call the message parser of
@@ -584,9 +615,11 @@ class TwitterBot(ExocortexBot):
     the queue of matching tweets by picking out useful information and sending
     it to the bot's owner. """
     def _tweet_queue_processor(self, queue):
+        print "\n\nEntered TwitterBot._tweet_queue_processor().\n\n"
         self.send_message(mto=self.owner,
             mbody="Running self._tweet_queue_processor() in a separate thread.")
         while True:
+            print "\n\nProcessing queue entry...\n\n"
             tweet = queue.get()
 
             # Detect 'None' as a termination sentinel in the queue.
@@ -596,6 +629,7 @@ class TwitterBot(ExocortexBot):
                 # Process the queue entry.
                 tweet = json.loads(tweet)
                 if 'text' in tweet:
+                    print "\n\n" + tweet['text'] + "\n\n"
                     self.send_message(mto=self.owner, mbody=tweet['text'])
         # All done.  Bail.
         print "\nTerminating queue processor.\n"
