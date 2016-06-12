@@ -1,3 +1,10 @@
+
+NOTE: This project is effectively dead.  If you're looking at this you should
+direct yourself to [Exocortex Halo](https://github.com/virtadpt/exocortex-halo).
+All things considered it's far more advanced and way more useful (unless all
+you're looking for is sample code to learn how to write your own Python
+modules...)
+
 This is a catch-all directory for a project I'm calling Exocortex - a system
 that spiders and indexes arbitrary data sources (Twitter timelines, RSS feeds,
 and other online storehouses of personally interesting and useful information)
